@@ -10,7 +10,6 @@ class User(models.Model):
     email = models.EmailField(unique=True)
     password_hash = models.CharField(max_length=255)
     email_confirmed = models.BooleanField(default=False)
-    reset_token = models.CharField(max_length=255, null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

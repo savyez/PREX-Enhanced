@@ -1,34 +1,27 @@
-import json
 import smtplib
 import requests
-from uuid import uuid4
 from decouple import config
 from .models import Coin, User
 from django.core import signing
 from django.urls import reverse
 from django.conf import settings
 from django.utils import timezone
-from django.http import JsonResponse
 from email.message import EmailMessage
-from django.views.decorators.csrf import csrf_exempt
-from rest_framework_simplejwt.tokens import AccessToken
+from django.core.exceptions import ValidationError
+from rest_framework import status
+from rest_framework.response import Response
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import AllowAny, IsAuthenticated
+from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework_simplejwt.exceptions import TokenError
 from django.contrib.auth.hashers import check_password, make_password
+from django.contrib.auth.password_validation import validate_password
 
 # Constants for CoinGecko API access
 COINGECKO_API_URL = config('COINGECKO_API_URL')
 HEADERS = {
     "x-cg-demo-api-key": config('COINGECKO_API_KEY')
 }
-
-# Utility function to parse JSON body from requests, handling both JSON and form data.
-def get_request_data(request):
-    if request.content_type == 'application/json':
-        try:
-            return json.loads(request.body)
-        except json.JSONDecodeError:
-            return None
-    return request.POST
-
 
 # Function to send verification email using SMTP
 def send_verification_email(to_email, username, verification_url):
@@ -69,58 +62,51 @@ def send_password_reset_email(to_email, username, reset_url):
 
 
 # Simple view to test the API endpoint
+@api_view(['GET'])
+@permission_classes([AllowAny])
 def home(request):
-    return JsonResponse({
+    return Response({
         'message': 'Welcome to the PREX API!'
         })
 
 # View to fetch the latest coin data from the CoinGecko API and update the database accordingly.
+@api_view(['GET'])
+@permission_classes([AllowAny])
 def coin_list(request):
-    if request.method == 'GET':
-        try:
-            response = requests.get(COINGECKO_API_URL, params={
-                "vs_currency": "usd",
-                "order_by": "market_cap_rank_asc",
-                "per_page": 250,
-                "page": 1,
-                "sparkline": True
-            }, headers=HEADERS)
-            response.raise_for_status()
+    try:
+        response = requests.get(COINGECKO_API_URL, params={
+            "vs_currency": "usd",
+            "order_by": "market_cap_rank_asc",
+            "per_page": 250,
+            "page": 1,
+            "sparkline": True
+        }, headers=HEADERS)
+        response.raise_for_status()
 
-        except requests.RequestException as error:
-            return JsonResponse({
-                "error": str(error)
-                }, status=502)
+    except requests.RequestException as error:
+        return Response({
+            "error": str(error)
+            }, status=status.HTTP_502_BAD_GATEWAY)
 
-        data = response.json()
-        
-        for coin_data in data:
-            Coin.objects.update_or_create(
-                ticker=coin_data['symbol'].upper(),
-                defaults={
-                    'coin_name': coin_data['name'],
-                    'price': coin_data['current_price'],
-                    'market_volume': coin_data['total_volume'],
-                    'last_updated_at': coin_data['last_updated']
-                }
-            )
-        return JsonResponse(data, safe=False)
-    
-    return JsonResponse({
-        'error': 'Only GET method is allowed for this endpoint.'
-        }, status=405)
+    data = response.json()
+
+    for coin_data in data:
+        Coin.objects.update_or_create(
+            ticker=coin_data['symbol'].upper(),
+            defaults={
+                'coin_name': coin_data['name'],
+                'price': coin_data['current_price'],
+                'market_volume': coin_data['total_volume'],
+                'last_updated_at': coin_data['last_updated']
+            }
+        )
+    return Response(data)
 
 
-@csrf_exempt
+@api_view(['POST'])
+@permission_classes([AllowAny])
 def register_user(request):
-    if request.method != 'POST':
-        return JsonResponse({
-            'error': 'Only POST method is allowed for this endpoint.'
-            }, status=405)
-
-    data = get_request_data(request)
-    if data is None:
-        return JsonResponse({'error': 'Invalid JSON body.'}, status=400)
+    data = request.data
 
     username = data.get('username')
     dob = data.get('dob')
@@ -128,19 +114,34 @@ def register_user(request):
     password = data.get('password')
 
     if not all([username, dob, email, password]):
-        return JsonResponse({
+        return Response({
             'error': 'username, dob, email, and password are required.'
-            }, status=400)
+            }, status=status.HTTP_400_BAD_REQUEST)
 
     if User.objects.filter(email=email).exists():
-        return JsonResponse({
+        return Response({
             'error': 'Email already exists.'
-            }, status=400)
+            }, status=status.HTTP_400_BAD_REQUEST)
 
     if User.objects.filter(username=username).exists():
-        return JsonResponse({
+        return Response({
             'error': 'Username already exists.'
-            }, status=400)
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+    try:
+        validate_password(password)
+    except ValidationError as e:
+        return Response({
+            'error': list(e.messages)
+            }, status=status.HTTP_400_BAD_REQUEST)
+    
+    User.objects.create(
+        username=username,
+        dob=dob,
+        email=email,
+        password_hash=make_password(password),
+        email_confirmed=False,
+    )
 
     token = signing.dumps(
         {
@@ -158,15 +159,17 @@ def register_user(request):
     try:
         send_verification_email(email, username, verification_url)
     except smtplib.SMTPException as error:
-        return JsonResponse({
+        return Response({
             'error': f'Could not send verification email: {error}'
-            }, status=502)
+            }, status=status.HTTP_502_BAD_GATEWAY)
 
-    return JsonResponse({
-        'message': 'Verification email sent. Your account will be created after email verification.'
+    return Response({
+        'message': 'Verification email sent. Verify your email to complete registration.'
         })
 
 
+@api_view(['GET'])
+@permission_classes([AllowAny])
 def verify_email(request, token):
     try:
         payload = signing.loads(
@@ -175,166 +178,201 @@ def verify_email(request, token):
             max_age=settings.EMAIL_VERIFICATION_MAX_AGE_SECONDS,
         )
     except signing.SignatureExpired:
-        return JsonResponse({'error': 'Verification link has expired.'}, status=400)
+        return Response({'error': 'Verification link has expired.'}, status=status.HTTP_400_BAD_REQUEST)
     except signing.BadSignature:
-        return JsonResponse({'error': 'Invalid verification link.'}, status=400)
+        return Response({'error': 'Invalid verification link.'}, status=status.HTTP_400_BAD_REQUEST)
 
     required_fields = ['username', 'dob', 'email', 'password_hash']
     if not all(payload.get(field) for field in required_fields):
-        return JsonResponse({'error': 'Invalid verification link.'}, status=400)
+        return Response({'error': 'Invalid verification link.'}, status=status.HTTP_400_BAD_REQUEST)
 
-    if User.objects.filter(email=payload['email']).exists():
-        return JsonResponse({'message': 'Email is already verified.'})
+    user = User.objects.filter(email=payload['email']).first()
+    if user and user.email_confirmed:
+        return Response({'message': 'Email is already verified.'})
 
-    if User.objects.filter(username=payload['username']).exists():
-        return JsonResponse({
+    username_owner = User.objects.filter(username=payload['username']).first()
+    if username_owner and username_owner.email != payload['email']:
+        return Response({
             'error': 'Username is no longer available. Please register again.'
-            }, status=409)
+            }, status=status.HTTP_409_CONFLICT)
 
-    User.objects.create(
-        username=payload['username'],
-        dob=payload['dob'],
-        email=payload['email'],
-        password_hash=payload['password_hash'],
-        email_confirmed=True,
+    if user:
+        user.username = payload['username']
+        user.dob = payload['dob']
+        user.password_hash = payload['password_hash']
+        user.email_confirmed = True
+        user.updated_at = timezone.now()
+        user.save(update_fields=['username', 'dob', 'password_hash', 'email_confirmed', 'updated_at'])
+    else:
+        User.objects.create(
+            username=payload['username'],
+            dob=payload['dob'],
+            email=payload['email'],
+            password_hash=payload['password_hash'],
+            email_confirmed=True,
+        )
+
+    return Response({'message': 'Email verified successfully. Login to your account now.'})
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def user_login(request):
+    data = request.data
+    username = data.get('username')
+    email = data.get('email')
+    password = data.get('password')
+
+    if not all([username, email, password]):
+        return Response({
+            'error': 'Username, email, and password are required for login.'
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+    user = User.objects.filter(username=username, email=email).first()
+    if not user or not check_password(password, user.password_hash):
+        return Response({
+            'error': 'Invalid username, email, or password.'
+        }, status=status.HTTP_401_UNAUTHORIZED)
+
+    if not user.email_confirmed:
+        return Response({
+            'error': 'Email not verified. Please verify your email before logging in.'
+        }, status=status.HTTP_403_FORBIDDEN)
+
+    refresh = RefreshToken.for_user(user)
+    refresh_token = str(refresh)
+    access_token = str(refresh.access_token)
+
+    return Response({
+        'status': 200,
+        'success': True,
+        'message': f'Login Successful, Welcome back {username}!',
+        'access_token': access_token,
+        'refresh_token': refresh_token,
+        'user': {
+            'username': username,
+            'email': email
+        }
+    })
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def reset_password(request):
+    email = request.data.get('email')
+
+    if not email:
+        return Response({
+            'error': 'Email is required to reset password.'
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+    user = User.objects.filter(email=email).first()
+    if not user:
+        return Response({
+            "message": "If email exists, reset instructions sent."
+            })
+
+    token = signing.dumps(
+        {'email': user.email},
+        salt=settings.PASSWORD_RESET_SALT,
+    )
+    reset_url = request.build_absolute_uri(
+        reverse('reset_password_confirm', kwargs={'token': token})
     )
 
-    return JsonResponse({'message': 'Email verified successfully. Account created.'})
+    try:
+        send_password_reset_email(email, user.username, reset_url)
+    except smtplib.SMTPException:
+        return Response({'error': 'Failed to send password reset email.'}, status=status.HTTP_502_BAD_GATEWAY)
 
-@csrf_exempt
-def user_login(request):
-    if request.method == 'POST':
-        data = get_request_data(request)
-        if data is None:
-            return JsonResponse({'error': 'Invalid JSON body.'}, status=400)
-        username = data.get('username')
-        email = data.get('email')
-        password = data.get('password')
-
-        print(f"Login attempt: username= {username}, email= {email}")
-
-        if username and email and password:
-            valid_user = User.objects.filter(username=username, email=email).exists()
-            valid_password = valid_user and check_password(password, User.objects.get(username=username).password_hash)
-            if not valid_user or not valid_password:
-                return JsonResponse({
-                    'error': 'Invalid username, email, or password.'
-                }, status=401)
-            access_token = str(AccessToken.for_user(User.objects.get(username=username)))
-            if valid_user:
-                return JsonResponse({
-                    'status': 200,
-                    'success': True,
-                    'message': f'Login Successful, Welcome back {username}!',
-                    'access_token': access_token,
-                    'user': {
-                        'username': username,
-                        'email': email
-                    }
-                })
-            else:
-                return JsonResponse({
-                    'error': 'Invalid username or email.'
-                }, status=401)
-        else:
-            return JsonResponse({
-                'error': 'Username, email, and password are required for login.'
-                }, status=400)
-        
-    return JsonResponse({
-        'message': 'Request method not allowed. Please use POST to login.'
+    return Response({
+        'success': True,
+        'message': f'Password reset instructions sent to {email}.'
         })
 
-@csrf_exempt
-def reset_password(request):
-    if request.method == 'POST':
-        data = get_request_data(request)
-        if data is None:
-            return JsonResponse({'error': 'Invalid JSON body.'}, status=400)
-        email = data.get('email')
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def reset_password_confirm(request, token):
+    try:
+        payload = signing.loads(
+            token,
+            salt=settings.PASSWORD_RESET_SALT,
+            max_age=settings.PASSWORD_RESET_MAX_AGE_SECONDS,
+        )
+    except signing.SignatureExpired:
+        return Response({'success': False, 'error': 'Password reset link has expired.'}, status=status.HTTP_400_BAD_REQUEST)
+    except signing.BadSignature:
+        return Response({'success': False, 'error': 'Invalid password reset link.'}, status=status.HTTP_400_BAD_REQUEST)
 
-        if email:
-            if User.objects.filter(email=email).exists():
-                reset_token = str(uuid4())
-                reset_url = request.build_absolute_uri(reverse('reset_password_confirm', kwargs={'reset_token': reset_token}))
-                User.objects.filter(email=email).update(reset_token=reset_token)
+    user = User.objects.filter(email=payload.get('email')).first()
+    if not user:
+        return Response({
+            'success': False,
+            'error': 'Invalid password reset link.'
+            }, status=status.HTTP_400_BAD_REQUEST)
 
-                try: 
-                    send_password_reset_email(email, User.objects.get(email=email).username, reset_url)
-                    return JsonResponse({
-                        'success': True,
-                        'message': f'Password reset instructions sent to {email}.'
-                        })
-                except Exception as e:
-                    return JsonResponse({'error': 'Failed to send password reset email.'}, status=500)
-                
-            else:
-                return JsonResponse({
-                    'error': 'Email not found.'
-                    }, status=404)
-        else:
-            return JsonResponse({
-                'error': 'Email is required to reset password.'
-                }, status=400)
-        
-    return JsonResponse({
-        'message': 'Reset password functionality will be implemented here.'
+    new_password = request.data.get('new_password')
+    confirm_new_password = request.data.get('confirm_new_password')
+
+    if not new_password or not confirm_new_password:
+        return Response({
+            'success': False,
+            'error': 'New password and confirm new password are required.'
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+    if new_password != confirm_new_password:
+        return Response({
+            'success': False,
+            'error': 'New password and confirm new password do not match.'
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+    try:
+        validate_password(new_password)
+    except ValidationError as e:
+        return Response({
+            'success': False,
+            'error': list(e.messages)
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+    if check_password(new_password, user.password_hash):
+        return Response({
+            'success': False,
+            'error': 'New password cannot be the same as the old password.'
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+    user.password_hash = make_password(new_password)
+    user.updated_at = timezone.now()
+    user.save(update_fields=['password_hash', 'updated_at'])
+
+    return Response({
+        'success': True,
+        'message': 'Password reset successfully.'
         })
 
-@csrf_exempt
-def reset_password_confirm(request, reset_token):
-    if request.method == 'POST':
-        data = get_request_data(request)
-        email = data.get('email')
-        new_password = data.get('new_password')
-        confirm_new_password = data.get('confirm_new_password')
-        if data is None:
-            return JsonResponse({'success': False, 'error': 'Invalid JSON Body'}, status=400)
-        
-        if User.objects.filter(email=email, reset_token=reset_token).exists():
-            if not new_password or not confirm_new_password:
-                return JsonResponse({
-                    'success': False, 
-                    'error': 'New password and confirm new password are required.'
-                    }, status=400)
-            if new_password != confirm_new_password:
-                return JsonResponse({
-                    'success': False, 
-                    'error': 'New password and confirm new password do not match.'
-                    }, status=400)
-            if len(new_password) < 8:
-                return JsonResponse({
-                    'success': False, 
-                    'error': 'New password must be at least 8 characters long.'
-                    }, status=400)
-            if check_password(new_password, User.objects.get(email=email).password_hash):
-                return JsonResponse({
-                    'success': False, 
-                    'error': 'New password cannot be the same as the old password.'
-                    }, status=400)
-            new_password_hash = make_password(new_password)
-            User.objects.filter(email=email, reset_token=reset_token).update(password_hash=new_password_hash, reset_token=None, updated_at=timezone.now())
-            return JsonResponse({
-                'success': True, 
-                'message': 'Password reset successfully.'
-                })
-        else:
-            return JsonResponse({
-                'success': False, 
-                'error': 'Invalid email or reset token.'
-                }, status=400)
-    return JsonResponse({
-        'message': 'Invalid request method. Please use POST to reset password.'
-        })
-
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
 def user_logout(request):
-    return JsonResponse({
-        'message': 'User logout functionality will be implemented here.'
-        })
+    refresh_token = request.data.get('refresh_token')
+    if not refresh_token:
+        return Response({
+            'error': 'Refresh token is required to logout.'
+        }, status=status.HTTP_400_BAD_REQUEST)
+
+    try:
+        token = RefreshToken(refresh_token)
+        token.blacklist()
+    except TokenError:
+        return Response({
+            'error': 'Invalid or expired refresh token.'
+        }, status=status.HTTP_400_BAD_REQUEST)
+
+    return Response({
+        'message': 'Logged out successfully.'
+    })
 
 
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
 def user_watchlists(request, user_id):
     # Placeholder for fetching a user's watchlists
-    return JsonResponse({
+    return Response({
         'message': f'Watchlists for user {user_id} will be returned here.'
         })

@@ -43,6 +43,7 @@ INSTALLED_APPS = [
     'api',
     'rest_framework',
     'rest_framework_simplejwt',
+    'rest_framework_simplejwt.token_blacklist',
 ]
 
 MIDDLEWARE = [
@@ -143,9 +144,10 @@ REST_FRAMEWORK = {
 }
 
 SIMPLE_JWT = {
-    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=60),
-    'REFRESH_TOKEN_LIFETIME': timedelta(days=1),
+    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=15),
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=7),
     'AUTH_HEADER_TYPES': ('Bearer',),
+    'BLACKLIST_AFTER_ROTATION': True,
 }
 
 PASSWORD_HASHERS = [
@@ -168,6 +170,12 @@ SERVER_EMAIL = DEFAULT_FROM_EMAIL
 EMAIL_VERIFICATION_SALT = 'api.email_verification'
 EMAIL_VERIFICATION_MAX_AGE_SECONDS = config(
     'EMAIL_VERIFICATION_MAX_AGE_SECONDS',
+    cast=int,
+    default=60 * 1 * 10,
+)
+PASSWORD_RESET_SALT = 'api.password_reset'
+PASSWORD_RESET_MAX_AGE_SECONDS = config(
+    'PASSWORD_RESET_MAX_AGE_SECONDS',
     cast=int,
     default=60 * 1 * 10,
 )
