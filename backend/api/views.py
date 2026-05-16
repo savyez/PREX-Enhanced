@@ -14,7 +14,7 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.exceptions import TokenError
-from django.contrib.auth.hashers import check_password, make_password
+from django.contrib.auth.hashers import make_password
 from django.contrib.auth.password_validation import validate_password
 
 # Constants for CoinGecko API access
@@ -108,7 +108,7 @@ def coin_list(request):
 def register_user(request):
     data = request.data
 
-    username = data.get('username')
+    username = data.get('username').lower()
     dob = data.get('dob')
     email = data.get('email')
     password = data.get('password')
@@ -133,13 +133,14 @@ def register_user(request):
     except ValidationError as e:
         return Response({
             'error': list(e.messages)
-            }, status=status.HTTP_400_BAD_REQUEST)
-    
-    User.objects.create(
+        }, status=status.HTTP_400_BAD_REQUEST)
+
+    password_hash = make_password(password)
+    User.objects.create_user(
         username=username,
         dob=dob,
         email=email,
-        password_hash=make_password(password),
+        password=password,
         email_confirmed=False,
     )
 
@@ -148,7 +149,7 @@ def register_user(request):
             'username': username,
             'dob': dob,
             'email': email,
-            'password_hash': make_password(password),
+            'password_hash': password_hash,
         },
         salt=settings.EMAIL_VERIFICATION_SALT,
     )
@@ -199,16 +200,16 @@ def verify_email(request, token):
     if user:
         user.username = payload['username']
         user.dob = payload['dob']
-        user.password_hash = payload['password_hash']
+        user.password = payload['password_hash']
         user.email_confirmed = True
         user.updated_at = timezone.now()
-        user.save(update_fields=['username', 'dob', 'password_hash', 'email_confirmed', 'updated_at'])
+        user.save(update_fields=['username', 'dob', 'password', 'email_confirmed', 'updated_at'])
     else:
         User.objects.create(
             username=payload['username'],
             dob=payload['dob'],
             email=payload['email'],
-            password_hash=payload['password_hash'],
+            password=payload['password_hash'],
             email_confirmed=True,
         )
 
@@ -217,18 +218,20 @@ def verify_email(request, token):
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def user_login(request):
-    data = request.data
-    username = data.get('username')
-    email = data.get('email')
-    password = data.get('password')
+    username = request.data.get('username').lower()
+    email = request.data.get('email')
+    password = request.data.get('password')
+
+    if username:
+        username = username.lower()
 
     if not all([username, email, password]):
         return Response({
             'error': 'Username, email, and password are required for login.'
-            }, status=status.HTTP_400_BAD_REQUEST)
+        }, status=status.HTTP_400_BAD_REQUEST)
 
     user = User.objects.filter(username=username, email=email).first()
-    if not user or not check_password(password, user.password_hash):
+    if not user or not user.check_password(password):
         return Response({
             'error': 'Invalid username, email, or password.'
         }, status=status.HTTP_401_UNAUTHORIZED)
@@ -242,6 +245,8 @@ def user_login(request):
     refresh_token = str(refresh)
     access_token = str(refresh.access_token)
 
+    user.last_login = timezone.now()
+    user.save(update_fields=['last_login'])
     return Response({
         'status': 200,
         'success': True,
@@ -332,15 +337,15 @@ def reset_password_confirm(request, token):
             'error': list(e.messages)
             }, status=status.HTTP_400_BAD_REQUEST)
 
-    if check_password(new_password, user.password_hash):
+    if user.check_password(new_password):
         return Response({
             'success': False,
             'error': 'New password cannot be the same as the old password.'
-            }, status=status.HTTP_400_BAD_REQUEST)
+        }, status=status.HTTP_400_BAD_REQUEST)
 
-    user.password_hash = make_password(new_password)
+    user.set_password(new_password)
     user.updated_at = timezone.now()
-    user.save(update_fields=['password_hash', 'updated_at'])
+    user.save(update_fields=['password', 'updated_at'])
 
     return Response({
         'success': True,
@@ -372,7 +377,11 @@ def user_logout(request):
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def user_watchlists(request, user_id):
-    # Placeholder for fetching a user's watchlists
+    if str(request.user.id) != user_id:
+        return Response({
+            'error': 'You do not have permission to view this user\'s watchlists.'
+            }, status=status.HTTP_403_FORBIDDEN)
+    
     return Response({
         'message': f'Watchlists for user {user_id} will be returned here.'
         })

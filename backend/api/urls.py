@@ -8,7 +8,7 @@ urlpatterns = [
 
     # User authentication and management endpoints
     path('register/', views.register_user, name='register_user'),
-    path('verify-email/<str:token>/', views.verify_email, name='verify_email'),
+    path('verify/<str:token>/', views.verify_email, name='verify_email'),
     path('login/', views.user_login, name='login_user'),
     path('token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
     path('reset-password/', views.reset_password, name='reset_password'),
