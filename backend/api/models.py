@@ -74,13 +74,14 @@ class Coin(models.Model):
     ticker = models.CharField(max_length=16, primary_key=True)
     coin_name = models.CharField(max_length=100, unique=True)
     price = models.DecimalField(max_digits=20, decimal_places=8)
+    market_cap_rank = models.IntegerField(null=True, blank=True)
     market_volume = models.DecimalField(max_digits=24, decimal_places=2)
     last_updated_at = models.DateTimeField()
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         db_table = "coins"
-        ordering = ["ticker"]
+        ordering = ["market_cap_rank"]
 
     def __str__(self):
         return f"{self.coin_name} ({self.ticker})"

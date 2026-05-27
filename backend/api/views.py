@@ -97,10 +97,15 @@ def coin_list(request):
                 'coin_name': coin_data['name'],
                 'price': coin_data['current_price'],
                 'market_volume': coin_data['total_volume'],
-                'last_updated_at': coin_data['last_updated']
+                'last_updated_at': coin_data['last_updated'],
+                'market_cap_rank': coin_data['market_cap_rank'],
             }
         )
-    return Response(data)
+    coins = Coin.objects.all().values('ticker', 'coin_name', 'price', 'market_volume', 'last_updated_at', 'market_cap_rank')
+    return Response({
+        'success': True,
+        'coins': list(coins)
+    })
 
 
 @api_view(['POST'])

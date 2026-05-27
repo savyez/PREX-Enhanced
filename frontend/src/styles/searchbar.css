@@ -21,8 +21,8 @@
 }
 
 .search-bar input:focus {
-    border-color: #6ea8fe;
-    box-shadow: 0 0 0 0.15rem rgba(13, 110, 253, 0.25);
+    border-color: #d5dde9;
+    box-shadow: 0 0 0 0.15rem #adb5bd;
 }
 
 .search-bar button {
@@ -38,5 +38,6 @@
 
 .search-bar button:hover {
     border-color: #adb5bd;
-    color: white;
+    color: rgb(0, 0, 0);
+    background-color: azure;
 }

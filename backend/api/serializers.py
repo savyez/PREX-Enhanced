@@ -11,7 +11,7 @@ class UserSerializer(serializers.ModelSerializer):
 class CoinSerializer(serializers.ModelSerializer):
     class Meta:
         model = Coin
-        fields = ['ticker', 'coin_name', 'price', 'market_volume', 'last_updated_at']
+        fields = ['ticker', 'coin_name', 'price', 'market_volume', 'last_updated_at', 'market_cap_rank']
 
 
 class WatchlistSerializer(serializers.ModelSerializer):
