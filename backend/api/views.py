@@ -1,7 +1,8 @@
+from os import name
 import smtplib
 import requests
 from decouple import config
-from .models import Coin, User
+from .models import Coin, User, Watchlist, WatchlistItem
 from django.core import signing
 from django.urls import reverse
 from django.conf import settings
@@ -69,6 +70,14 @@ def home(request):
         'message': 'Welcome to the PREX API!'
         })
 
+def refresh_user_tokens(user):
+    refresh = RefreshToken.for_user(user)
+    return {
+        'access_token': str(refresh.access_token),
+        'refresh_token': str(refresh)
+    }
+
+
 # View to fetch the latest coin data from the CoinGecko API and update the database accordingly.
 @api_view(['GET'])
 @permission_classes([AllowAny])
@@ -108,25 +117,35 @@ def coin_list(request):
     })
 
 
+# View to handle user registration, including validation, password hashing, 
+# and sending a verification email.
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def register_user(request):
     data = request.data
 
-    username = data.get('username').lower()
+    username = data.get('username')
     dob = data.get('dob')
     email = data.get('email')
     password = data.get('password')
+
+    if username:
+        username = username.lower()
 
     if not all([username, dob, email, password]):
         return Response({
             'error': 'username, dob, email, and password are required.'
             }, status=status.HTTP_400_BAD_REQUEST)
 
-    if User.objects.filter(email=email).exists():
-        return Response({
-            'error': 'Email already exists.'
-            }, status=status.HTTP_400_BAD_REQUEST)
+    existing_user = User.objects.filter(email=email).first()
+
+    if existing_user:
+        if existing_user.email_confirmed:
+            return Response({
+                'error': 'Email already exists.'
+                }, status=400)
+
+    # existing but unverified: resend verification email
 
     if User.objects.filter(username=username).exists():
         return Response({
@@ -174,6 +193,8 @@ def register_user(request):
         })
 
 
+# View to handle email verification when the user clicks the link in the verification email, 
+# including token validation and user account activation.
 @api_view(['GET'])
 @permission_classes([AllowAny])
 def verify_email(request, token):
@@ -220,10 +241,13 @@ def verify_email(request, token):
 
     return Response({'message': 'Email verified successfully. Login to your account now.'})
 
+
+# View to handle user login, including credential validation, 
+# token generation, and returning user information.
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def user_login(request):
-    username = request.data.get('username').lower()
+    username = request.data.get('username')
     email = request.data.get('email')
     password = request.data.get('password')
 
@@ -236,6 +260,7 @@ def user_login(request):
         }, status=status.HTTP_400_BAD_REQUEST)
 
     user = User.objects.filter(username=username, email=email).first()
+
     if not user or not user.check_password(password):
         return Response({
             'error': 'Invalid username, email, or password.'
@@ -259,11 +284,14 @@ def user_login(request):
         'access_token': access_token,
         'refresh_token': refresh_token,
         'user': {
+            'user_id': user.id,
             'username': username,
             'email': email
         }
     })
 
+
+# View to handle reset password request, including sending a password reset email with a secure token.
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def reset_password(request):
@@ -298,6 +326,9 @@ def reset_password(request):
         'message': f'Password reset instructions sent to {email}.'
         })
 
+
+# View to handle password reset confirmation, including validating the token, 
+# checking the new password against validation rules, and updating the user's password.
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def reset_password_confirm(request, token):
@@ -357,36 +388,239 @@ def reset_password_confirm(request, token):
         'message': 'Password reset successfully.'
         })
 
+
+# View to handle user logout by blacklisting the refresh token, 
+# ensuring that it cannot be used to generate new access tokens.
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def user_logout(request):
     refresh_token = request.data.get('refresh_token')
     if not refresh_token:
         return Response({
-            'error': 'Refresh token is required to logout.'
-        }, status=status.HTTP_400_BAD_REQUEST)
+            'error': 'Refresh token is required for logout.'
+            }, status=status.HTTP_400_BAD_REQUEST)
 
     try:
         token = RefreshToken(refresh_token)
         token.blacklist()
+
     except TokenError:
         return Response({
-            'error': 'Invalid or expired refresh token.'
-        }, status=status.HTTP_400_BAD_REQUEST)
+            'error': 'Invalid refresh token.'
+            }, status=status.HTTP_400_BAD_REQUEST)
 
     return Response({
-        'message': 'Logged out successfully.'
-    })
+        'success': True,
+        'message': 'Logout successful.'
+        })
 
 
+# View to retrieve all watchlists for a specific user, 
+# ensuring that the requesting user has permission to view the watchlists 
+# and returning the watchlist data in a structured format.
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def user_watchlists(request, user_id):
-    if str(request.user.id) != user_id:
+    if str(request.user.id) != str(user_id):
         return Response({
             'error': 'You do not have permission to view this user\'s watchlists.'
             }, status=status.HTTP_403_FORBIDDEN)
     
-    return Response({
-        'message': f'Watchlists for user {user_id} will be returned here.'
+    user = User.objects.filter(id=user_id).first()
+    if not user: 
+        return Response({
+            'error': 'User not found.'
+            }, status=status.HTTP_404_NOT_FOUND)
+    
+    watchlists = user.watchlists.all().values('user', 'name', 'created_at', 'updated_at')
+    if not watchlists:
+        return Response({
+            'success': True,
+            'message': 'No watchlists found for this user. Create a watchlist to get started.',
+            'watchlists': []
         })
+    
+    return Response({
+        'success': True,
+        'watchlists': list(watchlists)
+    })
+
+
+# View to create a new watchlist for the authenticated user, 
+# including validation to ensure that the watchlist name is provided and unique for the user, 
+# and returning the created watchlist data upon success.
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def create_watchlist(request):
+    user = request.user
+
+    watchlist_name = request.data.get('name')
+    if not watchlist_name:
+        return Response({
+            'error': 'Watchlist name is required.'
+        }, status=status.HTTP_400_BAD_REQUEST)
+
+    watchlist_name = watchlist_name.strip()
+
+    if user.watchlists.filter(name=watchlist_name).exists():
+        return Response({
+            'error': 'A watchlist with this name already exists.'
+        }, status=status.HTTP_409_CONFLICT)
+
+    watchlist = user.watchlists.create(name=watchlist_name)
+
+    return Response({
+        'success': True,
+        'message': f'Watchlist {watchlist_name} created successfully.',
+        'watchlist': {
+            'id': watchlist.id,
+            'name': watchlist.name,
+            'created_at': watchlist.created_at,
+            'updated_at': watchlist.updated_at
+        }
+    }, status=status.HTTP_201_CREATED)
+
+
+# View to add a coin to a user's watchlist, including permission checks,
+# validating the existence of the user, watchlist, and coin, and ensuring that the coin
+# is not already in the watchlist before adding it.
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def addCoinToWatchlist(request):
+    user_id = request.data.get('user_id')
+    if str(request.user.id) != str(user_id):
+        return Response({
+            'error': 'You do not have permission to modify this user\'s watchlists.'
+            }, status=status.HTTP_403_FORBIDDEN)
+    
+    user = User.objects.filter(id=user_id).first()
+
+    if not user:
+        return Response({
+            'error': 'User not found.'
+            }, status=status.HTTP_404_NOT_FOUND)
+    
+    watchlist_id = request.data.get('watchlist_id')
+    if not watchlist_id:
+        return Response({
+            'error': 'Watchlist ID is required to add a coin to the watchlist.'
+            }, status=status.HTTP_400_BAD_REQUEST)
+    
+    watchlist = user.watchlists.filter(id=watchlist_id).first()
+    if not watchlist:
+        return Response({
+            'error': 'Watchlist not found.'
+            }, status=status.HTTP_404_NOT_FOUND)
+    
+    ticker = request.data.get('ticker')
+    if ticker:
+        ticker = ticker.upper()
+    else:
+        return Response({
+            'error': 'Ticker is required to add a coin to the watchlist.'
+            }, status=status.HTTP_400_BAD_REQUEST)
+    
+    coin = Coin.objects.filter(ticker=ticker).first()
+    if not coin:
+        return Response({
+            'error': 'Coin not found.'
+            }, status=status.HTTP_404_NOT_FOUND)
+    
+    if watchlist.items.filter(ticker=coin).exists():
+        return Response({
+            'error': 'Coin is already in the watchlist.'
+            }, status=status.HTTP_409_CONFLICT)
+    
+    watchlist.items.create(ticker=coin)
+    return Response({
+        'success': True,
+        'message': f'{coin.coin_name} ({coin.ticker}) added to watchlist {watchlist.name}.'
+    })
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def removeCoinFromWatchlist(request):
+    user_id = request.data.get('user_id')
+    if str(request.user.id) != str(user_id):
+        return Response({
+            'error': 'You do not have permission to modify this user\'s watchlists.'
+            }, status=status.HTTP_403_FORBIDDEN)
+    
+    user = User.objects.filter(id=user_id).first()
+
+    if not user:
+        return Response({
+            'error': 'User not found.'
+            }, status=status.HTTP_404_NOT_FOUND)
+    
+    watchlist_id = request.data.get('watchlist_id')
+    if not watchlist_id:
+        return Response({
+            'error': 'Watchlist ID is required to remove a coin from the watchlist.'
+            }, status=status.HTTP_400_BAD_REQUEST)
+    
+    watchlist = user.watchlists.filter(id=watchlist_id).first()
+    if not watchlist:
+        return Response({
+            'error': 'Watchlist not found.'
+            }, status=status.HTTP_404_NOT_FOUND)
+    
+    ticker = request.data.get('ticker')
+    if not ticker:
+        return Response({
+            'error': 'Ticker is required to remove a coin from the watchlist.'
+            }, status=status.HTTP_400_BAD_REQUEST)
+    ticker = ticker.upper()
+    
+    coin = Coin.objects.filter(ticker=ticker).first()
+    if not coin:
+        return Response({
+            'error': 'Coin not found.'
+            }, status=status.HTTP_404_NOT_FOUND)
+    
+    item = watchlist.items.filter(ticker=coin).first()
+    if not item:
+        return Response({
+            'error': 'Coin is not in the watchlist.'
+            }, status=status.HTTP_404_NOT_FOUND)
+    
+    item.delete()
+    return Response({
+        'success': True,
+        'message': f'{coin.coin_name} ({coin.ticker}) removed from watchlist {watchlist.name}.'
+    })
+
+
+# View to retrieve all coins in a specific watchlist, 
+# including permission checks and returning the coin data in a structured format.
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def show_watchlist_items(request, watchlist_id):
+    watchlist_id = request.query_params.get('watchlist_id') or watchlist_id
+    if not watchlist_id:
+        return Response({
+            'error': 'Watchlist ID is required to view watchlist items.'
+            }, status=status.HTTP_400_BAD_REQUEST)
+    
+    watchlist = Watchlist.objects.filter(id=watchlist_id).first()
+
+    if not watchlist:
+        return Response({
+            'error': 'Watchlist not found.'
+            }, status=status.HTTP_404_NOT_FOUND)
+    
+    items = watchlist.items.select_related('ticker').all()
+    item_data = [{
+        'ticker': item.ticker.ticker,
+        'coin_name': item.ticker.coin_name,
+        'price': item.ticker.price,
+        'market_volume': item.ticker.market_volume,
+        'last_updated_at': item.ticker.last_updated_at,
+    } for item in items]
+
+    return Response({
+        'success': True,
+        'watchlist': watchlist.name,
+        'items': item_data
+    })

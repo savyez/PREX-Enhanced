@@ -16,5 +16,9 @@ urlpatterns = [
     path('logout/', views.user_logout, name='logout_user'),
 
     # Watchlist management endpoints
+    path('watchlists/create/', views.create_watchlist, name='create_watchlist'),
+    path('watchlists/add-coin/', views.addCoinToWatchlist, name='add_coin_to_watchlist'),
+    path('watchlists/remove-coin/', views.removeCoinFromWatchlist, name='remove_coin_from_watchlist'),
     path('watchlists/<str:user_id>/', views.user_watchlists, name='user_watchlists'),
+    path('watchlists/<str:watchlist_id>/items/', views.show_watchlist_items, name='show_watchlist_items'),
 ]

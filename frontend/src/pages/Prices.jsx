@@ -1,7 +1,6 @@
-import Card from '../components/Card.jsx';
 import '../styles/prices.css';
 import { useEffect, useState } from 'react';
-import Button from '../components/Button.jsx';
+import CoinCard from '../components/CoinCard.jsx';
 
 function Prices() {
 
@@ -45,18 +44,14 @@ function Prices() {
             {isLoading && <p>Loading prices...</p>}
             {error && <p className="price-down">{error}</p>}
             <section className="prices-grid" aria-label="Coin prices">
-                {coins.map((coin) => (
-                    <Card key={coin.ticker} className="price-card">
-                        <div>
-                            <h3>{coin.coin_name}</h3>
-                            <span>{coin.ticker}</span>
-                        </div>
-                        <strong>${Number(coin.price).toLocaleString()}</strong>
-                        <p>change: {coin.change_24h}%</p>
-                        <Button className="watchlist-button" name = "Add to Watchlist" href={`/watchlist/add/${coin.ticker}`} />
-                        <Button className="details-button" name = "details" href={`/coins/${coin.ticker}`} />
-                    </Card>
-                )).slice(0, 12)}
+                {coins.slice(0, 12).map((coin) => (
+                    <CoinCard
+                        key={coin.ticker}
+                        coin={coin}
+                        onWatchlistHref={`/watchlist/add/${coin.ticker}`}
+                        detailsHref={`/coins/${coin.ticker}`}
+                    />
+                ))}
             </section>
         </main>
     );

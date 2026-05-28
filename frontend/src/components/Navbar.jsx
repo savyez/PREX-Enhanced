@@ -3,22 +3,26 @@ import { Link, NavLink } from 'react-router-dom';
 import SearchBar from './SearchBar.jsx';
 import Button from './Button.jsx';
 
-function Navbar() {
+function Navbar({ brand = 'PREX', links = [], action, search = {} }) {
     return (
         <nav className="navbar">
             <Link to="/" className="navbar-brand">
-                <h1 className="navbar-title">PREX</h1>
+                <h1 className="navbar-title">{brand}</h1>
             </Link>
             <ul className="navbar-links">
-                <li><NavLink to="/">Home</NavLink></li>
-                <li><NavLink to="/prices">Prices</NavLink></li>
-                <li><NavLink to="/watchlist">Watchlist</NavLink></li>
-                <li><a href="#about">About</a></li>
-                <li><a href="#contact">Contact</a></li>
+                {links.map((link) => (
+                    <li key={link.href}>
+                        {link.href.startsWith('/') ? (
+                            <NavLink to={link.href}>{link.label}</NavLink>
+                        ) : (
+                            <a href={link.href}>{link.label}</a>
+                        )}
+                    </li>
+                ))}
             </ul>
 
-            <SearchBar />
-            <Button className="login-button" name="Login" href="#login" />
+            <SearchBar {...search} />
+            {action && <Button className={action.className} name={action.label} href={action.href} />}
         </nav>
     );
 }

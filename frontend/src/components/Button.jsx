@@ -1,7 +1,7 @@
 import '../styles/button.css';
 import { Link } from 'react-router-dom';
 
-function Button({ name, href, onClick, children, className = '' }) {
+function Button({ name, href, onClick, children, className = '', type = 'button', disabled = false }) {
   const label = children || name;
   const buttonClassName = ['button', className].filter(Boolean).join(' ');
 
@@ -22,7 +22,7 @@ function Button({ name, href, onClick, children, className = '' }) {
   }
 
   return (
-    <button className={buttonClassName} type="button" onClick={onClick}>
+    <button className={buttonClassName} type={type} onClick={onClick} disabled={disabled}>
       {label}
     </button>
   );

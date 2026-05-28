@@ -1,11 +1,11 @@
 import '../styles/searchbar.css';
 
-function SearchBar() {
+function SearchBar({ placeholder = 'Search...', buttonLabel = 'Search', value, onChange, onSubmit }) {
     return (
-        <div className="search-bar">
-            <input type="text" placeholder="Search coins..." />
-            <button>Search</button>
-        </div>
+        <form className="search-bar" onSubmit={onSubmit}>
+            <input type="text" placeholder={placeholder} value={value} onChange={onChange} />
+            <button type="submit">{buttonLabel}</button>
+        </form>
     );
 }
 
