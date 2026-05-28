@@ -1,4 +1,4 @@
-import '../styles/prices.css';
+import '../styles/page_style/prices.css';
 import { useEffect, useState } from 'react';
 import CoinCard from '../components/CoinCard.jsx';
 

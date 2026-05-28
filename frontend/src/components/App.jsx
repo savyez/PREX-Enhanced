@@ -1,4 +1,4 @@
-import '../styles/App.css';
+import '../styles/component_style/App.css';
 
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 
@@ -7,6 +7,7 @@ import Home from '../pages/Home.jsx';
 import Prices from '../pages/Prices.jsx';
 import Watchlist from '../pages/Watchlist.jsx';
 import Login from '../pages/Login.jsx';
+import Register from '../pages/Register.jsx';
 
 const navLinks = [
   { label: 'Home', href: '/' },
@@ -37,6 +38,7 @@ function App() {
           <Route path="/prices" element={<Prices />} />
           <Route path="/watchlist" element={<Watchlist />} />
           <Route path="/login" element={<Login />} />
+          <Route path="/register" element={<Register />} />
         </Routes>
       </div>
     </BrowserRouter>

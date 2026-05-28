@@ -1,5 +1,5 @@
 import Button from './Button';
-import '../styles/form.css';
+import '../styles/component_style/form.css';
 
 const Form = ({
   fields,

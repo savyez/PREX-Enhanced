@@ -1,0 +1,58 @@
+.register {
+    display: flex;
+    flex: 1;
+    box-sizing: border-box;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 0;
+    padding: 3rem 1.25rem;
+    background-color: #1f1e1e;
+    color: white;
+    gap: 1.25rem;
+}
+
+.register-title {
+    margin: 0;
+    text-align: center;
+    font-size: 1.75rem;
+    line-height: 1.2;
+}
+
+.register > .form {
+    width: min(100%, 26rem);
+}
+
+.register .form .button {
+    width: 100%;
+    background-color: #007bff;
+    border-color: #007bff;
+}
+
+.register > p {
+    margin: 0;
+    color: #dfe6ee;
+    text-align: center;
+}
+
+.register > p a {
+    color: #8ec5ff;
+    font-weight: 700;
+}
+
+@media (max-width: 480px) {
+    .register {
+        align-items: flex-start;
+        padding-top: 2rem;
+    }
+
+    .register-title,
+    .register > p,
+    .register > .form {
+        width: 100%;
+    }
+
+    .register-title {
+        font-size: 1.5rem;
+    }
+}

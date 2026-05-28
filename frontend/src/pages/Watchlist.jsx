@@ -1,4 +1,4 @@
-import '../styles/watchlist.css';
+import '../styles/page_style/watchlist.css';
 
 function Watchlist() {
     return (

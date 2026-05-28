@@ -1,4 +1,4 @@
-import '../styles/button.css';
+import '../styles/component_style/button.css';
 import { Link } from 'react-router-dom';
 
 function Button({ name, href, onClick, children, className = '', type = 'button', disabled = false }) {

@@ -1,0 +1,96 @@
+.login-page {
+    display: flex;
+    flex: 1;
+    box-sizing: border-box;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 0;
+    padding: 3rem 1.25rem;
+    background-color: #1f1e1e;
+    color: white;
+    gap: 1.25rem;
+}
+
+.login-page > h2 {
+    margin: 0;
+    text-align: center;
+    font-size: 1.75rem;
+    line-height: 1.2;
+}
+
+.login-page > .form {
+    width: min(100%, 26rem);
+}
+
+.login-page .form .button {
+    width: 100%;
+    background-color: #007bff;
+    border-color: #007bff;
+}
+
+.password-field {
+    flex-direction: column;
+}
+
+.password-input-wrap {
+    position: relative;
+    display: block;
+}
+
+.password-input-wrap input {
+    box-sizing: border-box;
+    width: 100%;
+    padding-right: 3rem;
+}
+
+.show-password-button {
+    position: absolute;
+    top: 50%;
+    right: 0.35rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.25rem;
+    height: 2.25rem;
+    border: 0;
+    background: transparent;
+    color: white;
+    font-size: 1rem;
+    line-height: 1;
+    transform: translateY(-50%);
+    cursor: pointer;
+}
+
+.show-password-button:focus-visible {
+    outline: 2px solid #8ec5ff;
+    outline-offset: 2px;
+}
+
+.login-page > p {
+    margin: 0;
+    color: #dfe6ee;
+    text-align: center;
+}
+
+.login-page > p a {
+    color: #8ec5ff;
+    font-weight: 700;
+}
+
+@media (max-width: 480px) {
+    .login-page {
+        align-items: flex-start;
+        padding-top: 2rem;
+    }
+
+    .login-page > h2,
+    .login-page > p,
+    .login-page > .form {
+        width: 100%;
+    }
+
+    .login-page > h2 {
+        font-size: 1.5rem;
+    }
+}

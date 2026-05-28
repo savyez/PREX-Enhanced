@@ -1,4 +1,4 @@
-import '../styles/navbar.css';
+import '../styles/component_style/navbar.css';
 import { Link, NavLink } from 'react-router-dom';
 import SearchBar from './SearchBar.jsx';
 import Button from './Button.jsx';

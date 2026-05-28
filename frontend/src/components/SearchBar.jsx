@@ -1,4 +1,4 @@
-import '../styles/searchbar.css';
+import '../styles/component_style/searchbar.css';
 
 function SearchBar({ placeholder = 'Search...', buttonLabel = 'Search', value, onChange, onSubmit }) {
     return (

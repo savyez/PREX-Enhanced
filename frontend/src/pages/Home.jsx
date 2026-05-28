@@ -1,5 +1,5 @@
 import Button from '../components/Button.jsx';
-import '../styles/home.css';
+import '../styles/page_style/home.css';
 
 function Home() {
     return (

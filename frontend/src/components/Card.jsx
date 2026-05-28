@@ -1,4 +1,4 @@
-import '../styles/card.css';
+import '../styles/component_style/card.css';
 
 function Card({ children, className = '' }) {
     const cardClassName = ['card', className].filter(Boolean).join(' ');
