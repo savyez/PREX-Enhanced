@@ -2,18 +2,23 @@ import '../styles/component_style/App.css';
 
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 
+// Components
 import Navbar from './Navbar.jsx';
+import Footer from './Footer.jsx';
+
+// Pages
 import Home from '../pages/Home.jsx';
 import Prices from '../pages/Prices.jsx';
 import Watchlist from '../pages/Watchlist.jsx';
 import Login from '../pages/Login.jsx';
 import Register from '../pages/Register.jsx';
+import About from '../pages/About.jsx';
 
 const navLinks = [
   { label: 'Home', href: '/' },
   { label: 'Prices', href: '/prices' },
   { label: 'Watchlist', href: '/watchlist' },
-  { label: 'About', href: '#about' },
+  { label: 'About', href: '/about' },
   { label: 'Contact', href: '#contact' },
 ];
 
@@ -39,7 +44,9 @@ function App() {
           <Route path="/watchlist" element={<Watchlist />} />
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
+          <Route path="/about" element={<About />} />
         </Routes>
+        <Footer />
       </div>
     </BrowserRouter>
   );

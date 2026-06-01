@@ -4,7 +4,7 @@
     align-items: center;
     justify-content: center;
     padding: 4rem 2rem;
-    color: white;
+    color: var(--color-text-inverse);
     text-align: center;
 }
 
@@ -16,7 +16,7 @@
 .home-hero p {
     max-width: 42rem;
     margin: 0;
-    color: #ced4da;
+    color: var(--color-text-light);
     font-size: 1.1rem;
     line-height: 1.6;
 }

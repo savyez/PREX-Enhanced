@@ -1,7 +1,7 @@
 .prices-page {
     flex: 1;
     padding: 3rem 2rem;
-    color: white;
+    color: var(--color-text-inverse);
 }
 
 .prices-header {
@@ -16,7 +16,7 @@
 
 .prices-header p {
     margin: 0;
-    color: #ced4da;
+    color: var(--color-text-light);
 }
 
 .prices-grid {
@@ -37,7 +37,7 @@
 }
 
 .price-card span {
-    color: #adb5bd;
+    color: var(--color-text-light);
     font-size: 0.9rem;
 }
 
@@ -51,19 +51,19 @@
 }
 
 .price-up {
-    color: #51cf66;
+    color: var(--color-success);
 }
 
 .price-down {
-    color: #ff8787;
+    color: var(--color-danger);
 }
 
 
 .watchlist-button {
     display: inline-block;
     padding: 0.5rem 1rem;
-    background-color: #51cf66;
-    color: white;
+    background-color: var(--color-success);
+    color: var(--color-text-inverse);
     border: none;
     border-radius: 4px;
     cursor: pointer;

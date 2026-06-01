@@ -1,7 +1,35 @@
+:root {
+    --color-bg: #f6f8fb;
+    --color-app-bg: #212529;
+    --color-surface: #ffffff;
+    --color-surface-dark: #292e33;
+    --color-surface-darker: #171a1d;
+    --color-surface-muted: #eef3f8;
+
+    --color-primary: #2563eb;
+    --color-primary-hover: #77adcf;
+    --color-primary-dark: #1e40af;
+
+    --color-navbar: #292e33;
+    --color-text: #111827;
+    --color-text-soft: #374151;
+    --color-text-muted: #4b5563;
+    --color-text-light: #cbd5e1;
+    --color-text-inverse: #ffffff;
+
+    --color-border: #dbe3ef;
+    --color-border-dark: #3d444c;
+    --color-success: #16a34a;
+    --color-warning: #f59e0b;
+    --color-danger: #dc2626;
+
+    --shadow-soft: 0 18px 45px rgba(23, 32, 51, 0.08);
+}
+
 html,
 body,
 #root {
     min-height: 100%;
     margin: 0;
-    background-color: #212529;
+    background-color: var(--color-app-bg);
 }

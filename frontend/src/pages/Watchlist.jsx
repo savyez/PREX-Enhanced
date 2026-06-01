@@ -1,6 +1,11 @@
 import '../styles/page_style/watchlist.css';
+import { useState } from 'react';
+import Navbar from '../components/Navbar.jsx';
+import Button from '../components/Button.jsx';
 
 function Watchlist() {
+    const[loading, setLoading] = useState(true);
+    const[user, setUser] = useState(null);
     return (
         <main className="watchlist-page">
             {user?.watchlist?.length > 0 ? (
@@ -10,16 +15,18 @@ function Watchlist() {
                         {user.watchlist.map((coin) => (
                             <div key={coin.id} className="watchlist-item">
                                 <h3>{coin.name}</h3>
-                                <p>Price: ${coin.price.toFixed(2)}</p>
+                                <p>Price: ${coin.price}</p>
                             </div>
                         ))}
                     </div>
                 </>
             ) : (
                 <>
-                    <h2>Your Watchlist is Empty</h2>
+                <div className="empty-watchlist">
+                    <h2 className="empty-watchlist-title">Your Watchlist is Empty</h2>
                     <p>Start adding coins to your watchlist to see them here.</p>
                     <Button className="explore-prices" name="Explore Coins" href="/prices" />
+                </div>
                 </>
             )}
         </main>
