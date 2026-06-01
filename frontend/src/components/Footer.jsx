@@ -1,5 +1,6 @@
 import "../styles/component_style/footer.css";
 import { Link } from "react-router-dom";
+import coingeckoLogo from "../assets/coingecko.png";
 
 const Footer = () => {
     return (
@@ -16,7 +17,17 @@ const Footer = () => {
                     <Link to="/privacy">Privacy</Link>
                 </nav>
 
-                <p className="footer-copy">&copy; {new Date().getFullYear()} PREX. All rights reserved.</p>
+                <div className="footer-bottom">
+                    <p className="footer-copy">&copy; {new Date().getFullYear()} PREX. All rights reserved.</p>
+                    <div className="footer-powered-by">
+                        <p className="footer-powered-label">Powered by</p>
+                        <img
+                            className="footer-powered-image"
+                            src={coingeckoLogo}
+                            alt="Powered by CoinGecko"
+                        />
+                    </div>
+                </div>
             </div>
         </footer>
     );
