@@ -38,3 +38,63 @@
     text-decoration: none;
     color: var(--color-primary-hover);
 }
+
+.account-menu {
+    position: relative;
+    margin-left: auto;
+}
+
+.account-avatar {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.5rem;
+    height: 2.5rem;
+    border: 1px solid var(--color-primary);
+    border-radius: 50%;
+    background-color: var(--color-primary);
+    color: var(--color-text-inverse);
+    cursor: pointer;
+    font: inherit;
+    font-size: 0.95rem;
+    font-weight: 700;
+}
+
+.account-avatar:hover,
+.account-avatar:focus-visible {
+    background-color: var(--color-primary-hover);
+    outline: none;
+}
+
+.account-dropdown {
+    position: absolute;
+    top: calc(100% + 0.75rem);
+    right: 0;
+    z-index: 10;
+    display: flex;
+    min-width: 10rem;
+    flex-direction: column;
+    padding: 0.5rem;
+    border: 1px solid var(--color-border-dark);
+    border-radius: 0.5rem;
+    background-color: var(--color-navbar);
+    box-shadow: 0 0.75rem 1.5rem rgb(0 0 0 / 20%);
+}
+
+.account-dropdown a {
+    padding: 0.65rem 0.75rem;
+    border-radius: 0.35rem;
+    color: var(--color-text-inverse);
+}
+
+.account-dropdown a:hover,
+.account-dropdown a.active {
+    background-color: rgb(255 255 255 / 10%);
+    color: var(--color-primary-hover);
+}
+
+@media (max-width: 720px) {
+    .account-menu {
+        margin-left: 0;
+    }
+}

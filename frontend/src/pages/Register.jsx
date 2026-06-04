@@ -2,6 +2,7 @@ import Form from '../components/Form';
 import '../styles/page_style/register.css';
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { register } from '../utils/api';
 
 const Register = () => {
     const navigate = useNavigate();
@@ -42,6 +43,8 @@ const registerFields = [
         email: '',
         password: '',
     });
+    const [error, setError] = useState("");
+    const [loading, setLoading] = useState(false);
 
     const handleChange = (e) => {
         const { name, value } = e.target;
@@ -52,6 +55,9 @@ const registerFields = [
     };
 
     const postData = async () => {
+        setLoading(true);
+        setError("");
+        
         const userData = {
         username: values.username,
         dob: values.date_of_birth,
@@ -60,18 +66,14 @@ const registerFields = [
     };
 
       try {
-        const response = await fetch('http://127.0.0.1:8000/api/v1/register/', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(userData),
-        });
-        const data = await response.json();
+        await register(userData);
         navigate('/login');
 
         } catch (error) {
+            setError(error.message);
             console.error('Registration error:', error);
+        } finally {
+            setLoading(false);
         }
 
         };
@@ -84,13 +86,14 @@ const registerFields = [
         return (
         <div className='register'>
             <h1 className='register-title'>Create an account</h1>
+            {error && <p className="error-message">{error}</p>}
             <Form 
                 type='register'
                 fields={registerFields}
                 values={values}
                 onChange={handleChange}
                 onSubmit={handleSubmit}
-                submitLabel='Register'
+                submitLabel={loading ? 'Registering...' : 'Register'}
             />
             <p>Already have an account? <a href='/login'>Login</a></p>
         </div>

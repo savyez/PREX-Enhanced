@@ -1,4 +1,3 @@
-import Navbar from "../components/Navbar";
 import '../styles/page_style/about.css';
 
 const About = () => {

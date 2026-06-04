@@ -1,6 +1,8 @@
 import { Link, useNavigate } from 'react-router-dom';
 import { useState } from 'react';
 import Form from '../components/Form';
+import { login } from '../utils/api';
+import { setAuth } from '../utils/auth';
 import '../styles/page_style/login.css';
 
 const loginFields = [
@@ -41,12 +43,9 @@ const Login = () => {
     rememberMe: false,
   });
   
-  const [showPassword, setShowPassword] = useState(false);
+  const [error, setError] = useState("");
 
-  const toggleShowPassword = () => {
-    setShowPassword((prev) => !prev);
-    setValues((prev) => ({ ...prev, showPassword: !prev.showPassword }));
-  };
+  const [loading, setLoading] = useState(false);
 
   const navigate = useNavigate();
   
@@ -59,6 +58,9 @@ const Login = () => {
   };
 
   const postData = async () => {
+    setError("");
+    setLoading(true);
+
     const userData = {
       username: values.username,
       email: values.email,
@@ -66,18 +68,17 @@ const Login = () => {
     };
 
       try {
-        const response = await fetch('http://127.0.0.1:8000/api/v1/login/', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(userData),
-        });
-        const data = await response.json();
+        const data = await login(userData);
+
+        setAuth(data.access_token, data.refresh_token, data.user);
+
         navigate('/prices');
 
       } catch (error) {
         console.error('Login error:', error);
+        setError(error.message);
+      } finally {
+        setLoading(false);
       }
   };
 
@@ -90,12 +91,17 @@ const Login = () => {
     return (
         <div className="login-page">
             <h2>Login to Your Account</h2>
+            {error && ( 
+              <p className="error-message">
+              {error}
+            </p>
+            )}
             <Form
-                fields={loginFields}
-                values={values}
-                onChange={handleChange}
-                onSubmit={handleSubmit}
-                submitLabel="Login"
+            fields={loginFields}
+            values={values}
+            onChange={handleChange}
+            onSubmit={handleSubmit}
+            submitLabel={loading ? "Logging in..." : "Login"}
             />
             <p>
                 Don't have an account? <Link to="/register">Register here</Link>.

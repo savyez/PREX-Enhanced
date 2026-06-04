@@ -1,6 +1,7 @@
 import '../styles/page_style/prices.css';
 import { useEffect, useState } from 'react';
 import CoinCard from '../components/CoinCard.jsx';
+import { getCoins } from '../utils/api.js';
 
 function Prices() {
 
@@ -13,16 +14,7 @@ function Prices() {
     useEffect(() => {
         const fetchCoins = async () => {
             try {
-                const response = await fetch('http://127.0.0.1:8000/api/v1/coins/', {
-                    method: 'GET',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                });
-                if (!response.ok) {
-                    throw new Error('Failed to fetch coin data');
-                }
-                const data = await response.json();
+                const data = await getCoins();
                 const coinsData = data.coins || data;
                 const topCoinsData = coinsData.filter(coin => coin.market_cap_rank !== null && coin.market_cap_rank <= 100);
                 topCoinsData.sort((a, b) => a.market_cap_rank - b.market_cap_rank);

@@ -15,7 +15,6 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.exceptions import TokenError
-from django.contrib.auth.hashers import make_password
 from django.contrib.auth.password_validation import validate_password
 
 # Constants for CoinGecko API access
@@ -159,7 +158,7 @@ def register_user(request):
             'error': list(e.messages)
         }, status=status.HTTP_400_BAD_REQUEST)
 
-    password_hash = make_password(password)
+    # Create inactive user with verified password (user must verify email to activate)
     User.objects.create_user(
         username=username,
         dob=dob,
@@ -168,13 +167,9 @@ def register_user(request):
         email_confirmed=False,
     )
 
+    # Token contains only email for verification (no password hash)
     token = signing.dumps(
-        {
-            'username': username,
-            'dob': dob,
-            'email': email,
-            'password_hash': password_hash,
-        },
+        {'email': email},
         salt=settings.EMAIL_VERIFICATION_SALT,
     )
     verification_url = request.build_absolute_uri(
@@ -184,6 +179,8 @@ def register_user(request):
     try:
         send_verification_email(email, username, verification_url)
     except smtplib.SMTPException as error:
+        # Delete the user if email sending fails
+        User.objects.filter(email=email).delete()
         return Response({
             'error': f'Could not send verification email: {error}'
             }, status=status.HTTP_502_BAD_GATEWAY)
@@ -194,7 +191,7 @@ def register_user(request):
 
 
 # View to handle email verification when the user clicks the link in the verification email, 
-# including token validation and user account activation.
+# activating the user account.
 @api_view(['GET'])
 @permission_classes([AllowAny])
 def verify_email(request, token):
@@ -209,37 +206,23 @@ def verify_email(request, token):
     except signing.BadSignature:
         return Response({'error': 'Invalid verification link.'}, status=status.HTTP_400_BAD_REQUEST)
 
-    required_fields = ['username', 'dob', 'email', 'password_hash']
-    if not all(payload.get(field) for field in required_fields):
+    email = payload.get('email')
+    if not email:
         return Response({'error': 'Invalid verification link.'}, status=status.HTTP_400_BAD_REQUEST)
 
-    user = User.objects.filter(email=payload['email']).first()
-    if user and user.email_confirmed:
+    user = User.objects.filter(email=email).first()
+    if not user:
+        return Response({'error': 'User not found. Please register again.'}, status=status.HTTP_404_NOT_FOUND)
+
+    if user.email_confirmed:
         return Response({'message': 'Email is already verified.'})
 
-    username_owner = User.objects.filter(username=payload['username']).first()
-    if username_owner and username_owner.email != payload['email']:
-        return Response({
-            'error': 'Username is no longer available. Please register again.'
-            }, status=status.HTTP_409_CONFLICT)
+    # Activate user account
+    user.email_confirmed = True
+    user.updated_at = timezone.now()
+    user.save(update_fields=['email_confirmed', 'updated_at'])
 
-    if user:
-        user.username = payload['username']
-        user.dob = payload['dob']
-        user.password = payload['password_hash']
-        user.email_confirmed = True
-        user.updated_at = timezone.now()
-        user.save(update_fields=['username', 'dob', 'password', 'email_confirmed', 'updated_at'])
-    else:
-        User.objects.create(
-            username=payload['username'],
-            dob=payload['dob'],
-            email=payload['email'],
-            password=payload['password_hash'],
-            email_confirmed=True,
-        )
-
-    return Response({'message': 'Email verified successfully. Login to your account now.'})
+    return Response({'message': 'Email verified successfully. You can now login to your account.'})
 
 
 # View to handle user login, including credential validation, 
@@ -288,6 +271,19 @@ def user_login(request):
             'username': username,
             'email': email
         }
+    })
+
+
+# View to retrieve the current authenticated user's information, 
+# ensuring that the user is authenticated and returning relevant user details.
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def current_user(request):
+    user = request.user
+    return Response({
+        'user_id': user.id,
+        'username': user.username,
+        'email': user.email
     })
 
 
@@ -432,7 +428,7 @@ def user_watchlists(request, user_id):
             'error': 'User not found.'
             }, status=status.HTTP_404_NOT_FOUND)
     
-    watchlists = user.watchlists.all().values('user', 'name', 'created_at', 'updated_at')
+    watchlists = user.watchlists.all().values('id', 'user', 'name', 'created_at', 'updated_at')
     if not watchlists:
         return Response({
             'success': True,
@@ -609,6 +605,11 @@ def show_watchlist_items(request, watchlist_id):
         return Response({
             'error': 'Watchlist not found.'
             }, status=status.HTTP_404_NOT_FOUND)
+
+    if watchlist.user_id != request.user.id:
+        return Response({
+            'error': 'You do not have permission to view this watchlist.'
+            }, status=status.HTTP_403_FORBIDDEN)
     
     items = watchlist.items.select_related('ticker').all()
     item_data = [{
