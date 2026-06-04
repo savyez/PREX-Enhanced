@@ -3,12 +3,14 @@ import smtplib
 import requests
 from decouple import config
 from .models import Coin, User, Watchlist, WatchlistItem
+from .serializers import UserSerializer, CoinSerializer, WatchlistSerializer, WatchlistItemDetailSerializer
 from django.core import signing
 from django.urls import reverse
 from django.conf import settings
 from django.utils import timezone
 from email.message import EmailMessage
 from django.core.exceptions import ValidationError
+from django.contrib.auth.base_user import BaseUserManager
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.decorators import api_view, permission_classes
@@ -22,6 +24,14 @@ COINGECKO_API_URL = config('COINGECKO_API_URL')
 HEADERS = {
     "x-cg-demo-api-key": config('COINGECKO_API_KEY')
 }
+
+
+def normalize_username(username):
+    return username.strip().lower() if username else username
+
+
+def normalize_email(email):
+    return BaseUserManager.normalize_email(email.strip()) if email else email
 
 # Function to send verification email using SMTP
 def send_verification_email(to_email, username, verification_url):
@@ -109,10 +119,11 @@ def coin_list(request):
                 'market_cap_rank': coin_data['market_cap_rank'],
             }
         )
-    coins = Coin.objects.all().values('ticker', 'coin_name', 'price', 'market_volume', 'last_updated_at', 'market_cap_rank')
+    coins = Coin.objects.all()
+    serializer = CoinSerializer(coins, many=True)
     return Response({
         'success': True,
-        'coins': list(coins)
+        'coins': serializer.data
     })
 
 
@@ -123,13 +134,10 @@ def coin_list(request):
 def register_user(request):
     data = request.data
 
-    username = data.get('username')
+    username = normalize_username(data.get('username'))
     dob = data.get('dob')
-    email = data.get('email')
+    email = normalize_email(data.get('email'))
     password = data.get('password')
-
-    if username:
-        username = username.lower()
 
     if not all([username, dob, email, password]):
         return Response({
@@ -206,7 +214,7 @@ def verify_email(request, token):
     except signing.BadSignature:
         return Response({'error': 'Invalid verification link.'}, status=status.HTTP_400_BAD_REQUEST)
 
-    email = payload.get('email')
+    email = normalize_email(payload.get('email'))
     if not email:
         return Response({'error': 'Invalid verification link.'}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -230,12 +238,9 @@ def verify_email(request, token):
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def user_login(request):
-    username = request.data.get('username')
-    email = request.data.get('email')
+    username = normalize_username(request.data.get('username'))
+    email = normalize_email(request.data.get('email'))
     password = request.data.get('password')
-
-    if username:
-        username = username.lower()
 
     if not all([username, email, password]):
         return Response({
@@ -260,17 +265,15 @@ def user_login(request):
 
     user.last_login = timezone.now()
     user.save(update_fields=['last_login'])
+    
+    user_serializer = UserSerializer(user)
     return Response({
         'status': 200,
         'success': True,
-        'message': f'Login Successful, Welcome back {username}!',
+        'message': f'Login Successful, Welcome back {user.username}!',
         'access_token': access_token,
         'refresh_token': refresh_token,
-        'user': {
-            'user_id': user.id,
-            'username': username,
-            'email': email
-        }
+        'user': user_serializer.data
     })
 
 
@@ -291,7 +294,7 @@ def current_user(request):
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def reset_password(request):
-    email = request.data.get('email')
+    email = normalize_email(request.data.get('email'))
 
     if not email:
         return Response({
@@ -339,7 +342,7 @@ def reset_password_confirm(request, token):
     except signing.BadSignature:
         return Response({'success': False, 'error': 'Invalid password reset link.'}, status=status.HTTP_400_BAD_REQUEST)
 
-    user = User.objects.filter(email=payload.get('email')).first()
+    user = User.objects.filter(email=normalize_email(payload.get('email'))).first()
     if not user:
         return Response({
             'success': False,
@@ -428,7 +431,7 @@ def user_watchlists(request, user_id):
             'error': 'User not found.'
             }, status=status.HTTP_404_NOT_FOUND)
     
-    watchlists = user.watchlists.all().values('id', 'user', 'name', 'created_at', 'updated_at')
+    watchlists = user.watchlists.all()
     if not watchlists:
         return Response({
             'success': True,
@@ -436,9 +439,10 @@ def user_watchlists(request, user_id):
             'watchlists': []
         })
     
+    serializer = WatchlistSerializer(watchlists, many=True)
     return Response({
         'success': True,
-        'watchlists': list(watchlists)
+        'watchlists': serializer.data
     })
 
 
@@ -464,16 +468,12 @@ def create_watchlist(request):
         }, status=status.HTTP_409_CONFLICT)
 
     watchlist = user.watchlists.create(name=watchlist_name)
+    serializer = WatchlistSerializer(watchlist)
 
     return Response({
         'success': True,
         'message': f'Watchlist {watchlist_name} created successfully.',
-        'watchlist': {
-            'id': watchlist.id,
-            'name': watchlist.name,
-            'created_at': watchlist.created_at,
-            'updated_at': watchlist.updated_at
-        }
+        'watchlist': serializer.data
     }, status=status.HTTP_201_CREATED)
 
 
@@ -482,7 +482,7 @@ def create_watchlist(request):
 # is not already in the watchlist before adding it.
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
-def addCoinToWatchlist(request):
+def add_coin_to_watchlist(request):
     user_id = request.data.get('user_id')
     if str(request.user.id) != str(user_id):
         return Response({
@@ -528,15 +528,17 @@ def addCoinToWatchlist(request):
             }, status=status.HTTP_409_CONFLICT)
     
     watchlist.items.create(ticker=coin)
+    serializer = WatchlistSerializer(watchlist)
     return Response({
         'success': True,
-        'message': f'{coin.coin_name} ({coin.ticker}) added to watchlist {watchlist.name}.'
+        'message': f'{coin.coin_name} ({coin.ticker}) added to watchlist {watchlist.name}.',
+        'watchlist': serializer.data
     })
 
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
-def removeCoinFromWatchlist(request):
+def remove_coin_from_watchlist(request):
     user_id = request.data.get('user_id')
     if str(request.user.id) != str(user_id):
         return Response({
@@ -582,9 +584,11 @@ def removeCoinFromWatchlist(request):
             }, status=status.HTTP_404_NOT_FOUND)
     
     item.delete()
+    serializer = WatchlistSerializer(watchlist)
     return Response({
         'success': True,
-        'message': f'{coin.coin_name} ({coin.ticker}) removed from watchlist {watchlist.name}.'
+        'message': f'{coin.coin_name} ({coin.ticker}) removed from watchlist {watchlist.name}.',
+        'watchlist': serializer.data
     })
 
 
@@ -612,16 +616,10 @@ def show_watchlist_items(request, watchlist_id):
             }, status=status.HTTP_403_FORBIDDEN)
     
     items = watchlist.items.select_related('ticker').all()
-    item_data = [{
-        'ticker': item.ticker.ticker,
-        'coin_name': item.ticker.coin_name,
-        'price': item.ticker.price,
-        'market_volume': item.ticker.market_volume,
-        'last_updated_at': item.ticker.last_updated_at,
-    } for item in items]
+    serializer = WatchlistItemDetailSerializer(items, many=True)
 
     return Response({
         'success': True,
         'watchlist': watchlist.name,
-        'items': item_data
+        'items': serializer.data
     })
