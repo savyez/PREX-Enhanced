@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { logout } from '../utils/api';
-import { clearAuth } from '../utils/auth';
+import { useAuth } from '../context/AuthContext';
 
 const Logout = () => {
     const navigate = useNavigate();
+    const { logout: authLogout } = useAuth();
     const [error, setError] = useState("");
 
     useEffect(() => {
@@ -20,13 +21,13 @@ const Logout = () => {
             } catch {
                 setError('Error occurred while logging out');
             } finally {
-                clearAuth();
+                authLogout();
                 navigate('/login');
             }
         };
 
         performLogout();
-    }, [navigate]);
+    }, [navigate, authLogout]);
 
     return (
         <div>

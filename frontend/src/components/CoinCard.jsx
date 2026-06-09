@@ -1,7 +1,7 @@
 import Button from './Button.jsx';
 import Card from './Card.jsx';
 
-function CoinCard({ coin, onWatchlistHref, detailsHref }) {
+function CoinCard({ coin, onWatchlistClick, detailsHref }) {
     const price = Number(coin.price).toLocaleString();
     const change = coin.change_24h ?? 'N/A';
 
@@ -13,7 +13,12 @@ function CoinCard({ coin, onWatchlistHref, detailsHref }) {
             </div>
             <strong>${price}</strong>
             <p>change: {change}%</p>
-            <Button className="watchlist-button" name="Add to Watchlist" href={onWatchlistHref} />
+            <button 
+                className="watchlist-button" 
+                onClick={onWatchlistClick}
+            >
+                Add to Watchlist
+            </button>
             <Button className="details-button" name="details" href={detailsHref} />
         </Card>
     );

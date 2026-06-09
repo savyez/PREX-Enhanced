@@ -103,6 +103,36 @@
     line-height: 1.6;
 }
 
+.empty-watchlist-create-btn {
+    margin: 1.5rem 0;
+    padding: 0.75rem 1.5rem;
+    background-color: var(--color-primary);
+    color: white;
+    border: 1px solid var(--color-primary);
+    border-radius: 0.375rem;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.empty-watchlist-create-btn:hover {
+    background-color: #1e88e5;
+    border-color: #1e88e5;
+    transform: translateY(-2px);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+.empty-watchlist-create-btn:active {
+    transform: translateY(0);
+}
+
+.empty-watchlist-divider {
+    margin-top: 1rem;
+    font-size: 0.9rem;
+    color: var(--color-text-light);
+}
+
 .explore-prices {
     background-color: var(--color-primary);
     border-color: var(--color-primary);

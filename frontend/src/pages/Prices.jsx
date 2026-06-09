@@ -1,15 +1,17 @@
 import '../styles/page_style/prices.css';
 import { useEffect, useState } from 'react';
 import CoinCard from '../components/CoinCard.jsx';
+import WatchlistSelector from '../components/WatchlistSelector.jsx';
 import { getCoins } from '../utils/api.js';
+import { useAuth } from '../context/AuthContext';
 
 function Prices() {
-
+    const { authenticated } = useAuth();
     const [coins, setCoins] = useState([]);
-    
     const [isLoading, setIsLoading] = useState(true);
-
     const [error, setError] = useState(null);
+    const [selectedCoin, setSelectedCoin] = useState(null);
+    const [showWatchlistSelector, setShowWatchlistSelector] = useState(false);
 
     useEffect(() => {
         const fetchCoins = async () => {
@@ -30,6 +32,26 @@ function Prices() {
         fetchCoins();
     }, []);
 
+    const handleWatchlistClick = (coin) => {
+        if (!authenticated) {
+            alert('Please log in to add coins to your watchlist');
+            return;
+        }
+        setSelectedCoin(coin);
+        setShowWatchlistSelector(true);
+    };
+
+    const handleWatchlistSelectorClose = () => {
+        setShowWatchlistSelector(false);
+        setSelectedCoin(null);
+    };
+
+    const handleWatchlistSelectorSuccess = () => {
+        setShowWatchlistSelector(false);
+        setSelectedCoin(null);
+        // Optionally show a success message
+        alert(`${selectedCoin.coin_name} added to watchlist!`);
+    };
 
     return (
         <main className="prices-page">
@@ -40,11 +62,19 @@ function Prices() {
                     <CoinCard
                         key={coin.ticker}
                         coin={coin}
-                        onWatchlistHref={`/watchlist/add/${coin.ticker}`}
+                        onWatchlistClick={() => handleWatchlistClick(coin)}
                         detailsHref={`/coins/${coin.ticker}`}
                     />
                 ))}
             </section>
+
+            {showWatchlistSelector && selectedCoin && (
+                <WatchlistSelector
+                    coin={selectedCoin}
+                    onClose={handleWatchlistSelectorClose}
+                    onSuccess={handleWatchlistSelectorSuccess}
+                />
+            )}
         </main>
     );
 }

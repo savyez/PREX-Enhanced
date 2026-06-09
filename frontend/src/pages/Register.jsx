@@ -54,20 +54,40 @@ const registerFields = [
         }));
     };
 
+    const isAdult = (dob) => {
+        if (!dob) return false;
+
+        const birthDate = new Date(dob);
+        const today = new Date();
+        const adultDate = new Date(
+            today.getFullYear() - 18,
+            today.getMonth(),
+            today.getDate()
+        );
+
+        return birthDate <= adultDate;
+    };
+
     const postData = async () => {
         setLoading(true);
         setError("");
-        
-        const userData = {
-        username: values.username,
-        dob: values.date_of_birth,
-        email: values.email,
-        password: values.password,
-    };
 
-      try {
-        await register(userData);
-        navigate('/login');
+        if (!isAdult(values.date_of_birth)) {
+            setError('You must be 18 years or older to register.');
+            setLoading(false);
+            return;
+        }
+
+        const userData = {
+            username: values.username,
+            dob: values.date_of_birth,
+            email: values.email,
+            password: values.password,
+        };
+
+        try {
+            await register(userData);
+            navigate('/verification-pending');
 
         } catch (error) {
             setError(error.message);
@@ -75,13 +95,12 @@ const registerFields = [
         } finally {
             setLoading(false);
         }
+    };
 
-        };
-
-        const handleSubmit = async (e) => {
-                e.preventDefault();
-                await postData();
-        };
+    const handleSubmit = async (e) => {
+        e.preventDefault();
+        await postData();
+    };
 
         return (
         <div className='register'>

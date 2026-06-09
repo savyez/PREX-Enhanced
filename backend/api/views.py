@@ -391,27 +391,30 @@ def reset_password_confirm(request, token):
 # View to handle user logout by blacklisting the refresh token, 
 # ensuring that it cannot be used to generate new access tokens.
 @api_view(['POST'])
-@permission_classes([IsAuthenticated])
+@permission_classes([AllowAny])
 def user_logout(request):
     refresh_token = request.data.get('refresh_token')
+
     if not refresh_token:
-        return Response({
-            'error': 'Refresh token is required for logout.'
-            }, status=status.HTTP_400_BAD_REQUEST)
+        return Response(
+            {'error': 'Refresh token is required.'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
 
     try:
         token = RefreshToken(refresh_token)
         token.blacklist()
 
-    except TokenError:
         return Response({
-            'error': 'Invalid refresh token.'
-            }, status=status.HTTP_400_BAD_REQUEST)
-
-    return Response({
-        'success': True,
-        'message': 'Logout successful.'
+            'success': True,
+            'message': 'Logout successful.'
         })
+
+    except TokenError:
+        return Response(
+            {'error': 'Invalid refresh token.'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
 
 
 # View to retrieve all watchlists for a specific user, 

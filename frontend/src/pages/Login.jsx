@@ -2,7 +2,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useState } from 'react';
 import Form from '../components/Form';
 import { login } from '../utils/api';
-import { setAuth } from '../utils/auth';
+import { useAuth } from '../context/AuthContext';
 import '../styles/page_style/login.css';
 
 const loginFields = [
@@ -35,8 +35,8 @@ const loginFields = [
 ];
 
 const Login = () => {
-
-  const[values, setValues] = useState({
+  const { login: authLogin } = useAuth();
+  const [values, setValues] = useState({
     username: '',
     email: '',
     password: '',
@@ -70,7 +70,7 @@ const Login = () => {
       try {
         const data = await login(userData);
 
-        setAuth(data.access_token, data.refresh_token, data.user);
+        authLogin(data.access_token, data.refresh_token, data.user);
 
         navigate('/prices');
 
