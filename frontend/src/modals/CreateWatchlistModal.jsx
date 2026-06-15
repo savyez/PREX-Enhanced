@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import '../styles/component_style/create-watchlist-modal.css';
+import '../styles/modal_style/create-watchlist-modal.css';
 
 function CreateWatchlistModal({ onClose, onSuccess }) {
   const [watchlistName, setWatchlistName] = useState('');

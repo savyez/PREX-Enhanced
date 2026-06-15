@@ -55,15 +55,21 @@ function Prices() {
 
     return (
         <main className="prices-page">
+            <section className="prices-header">
+                <h1>Top Cryptocurrencies</h1>
+                <p>
+                    Track prices and add coins to your watchlists.
+                </p>
+            </section>
             {isLoading && <p>Loading prices...</p>}
             {error && <p className="price-down">{error}</p>}
             <section className="prices-grid" aria-label="Coin prices">
-                {coins.slice(0, 12).map((coin) => (
+                {coins.slice(0, 25).map((coin) => (
                     <CoinCard
                         key={coin.ticker}
                         coin={coin}
+                        rank={coin.market_cap_rank}
                         onWatchlistClick={() => handleWatchlistClick(coin)}
-                        detailsHref={`/coins/${coin.ticker}`}
                     />
                 ))}
             </section>

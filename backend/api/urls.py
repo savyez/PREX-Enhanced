@@ -22,4 +22,5 @@ urlpatterns = [
     path('watchlists/remove-coin/', views.remove_coin_from_watchlist, name='remove_coin_from_watchlist'),
     path('watchlists/<str:user_id>/', views.user_watchlists, name='user_watchlists'),
     path('watchlists/<str:watchlist_id>/items/', views.show_watchlist_items, name='show_watchlist_items'),
+    path('watchlists/<str:watchlist_id>/delete/', views.delete_watchlist, name='delete_watchlist'),
 ]

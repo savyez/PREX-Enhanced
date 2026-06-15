@@ -626,3 +626,31 @@ def show_watchlist_items(request, watchlist_id):
         'watchlist': watchlist.name,
         'items': serializer.data
     })
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def delete_watchlist(request, watchlist_id):
+    user_id = request.data.get('user_id')
+    if str(request.user.id) != str(user_id):
+        return Response({
+            'error': 'You do not have permission to modify this user\'s watchlists.'
+            }, status=status.HTTP_403_FORBIDDEN)
+
+    user = User.objects.filter(id=user_id).first()
+
+    if not user:
+        return Response({
+            'error': 'User not found.'
+            }, status=status.HTTP_404_NOT_FOUND)
+
+    watchlist = user.watchlists.filter(id=watchlist_id).first()
+    if not watchlist:
+        return Response({
+            'error': 'Watchlist not found.'
+            }, status=status.HTTP_404_NOT_FOUND)
+    
+    watchlist.delete()
+    return Response({
+        'success': True,
+        'message': f'Watchlist {watchlist.name} with {watchlist_id} has been deleted successfully.'
+    })

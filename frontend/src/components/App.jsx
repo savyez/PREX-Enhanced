@@ -18,6 +18,7 @@ import Privacy from '../pages/Privacy';
 import Logout from '../pages/Logout';
 import Profile from '../pages/Profile';
 import Settings from '../pages/Settings';
+import Search from '../pages/Search';
 
 function App() {
   return (
@@ -36,6 +37,7 @@ function App() {
             <Route path="/privacy" element={<Privacy />} />
             <Route path="/profile" element={<Profile />} />
             <Route path="/settings" element={<Settings />} />
+            <Route path="/search" element={<Search />} />
             <Route path="/logout" element={<Logout />} />
           </Routes>
         </AppContent>

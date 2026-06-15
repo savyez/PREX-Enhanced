@@ -183,6 +183,25 @@ const removeCoinFromWatchlist = (userId, watchlistId, ticker) =>
     }),
   });
 
+// Create a new watchlist for a user
+const createWatchlist = (userId, name) =>
+  apiFetch('/watchlists/create/', {
+    method: 'POST',
+    body: JSON.stringify({
+      user_id: userId,
+      name: name,
+    }),
+  });
+
+// Delete a watchlist for a user
+const deleteWatchlist = (userId, watchlistId) =>
+  apiFetch(`/watchlists/${watchlistId}/delete/`, {
+    method: 'POST',
+    body: JSON.stringify({
+      user_id: userId,
+    }),
+  });
+
 
 export { 
   apiFetch, 
@@ -193,5 +212,7 @@ export {
   getWatchlists, 
   getWatchlistItems, 
   addCoinToWatchlist, 
-  removeCoinFromWatchlist 
+  removeCoinFromWatchlist,
+  createWatchlist,
+  deleteWatchlist, 
 };

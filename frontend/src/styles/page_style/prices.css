@@ -1,12 +1,18 @@
 .prices-page {
     flex: 1;
-    padding: 3rem 2rem;
-    color: var(--color-text-inverse);
+    padding: 2rem 4rem;
+    width: 85%;
 }
 
 .prices-header {
-    max-width: 64rem;
-    margin: 0 auto 2rem;
+    width: 100%;
+    margin-bottom: 2rem;
+}
+
+.prices-header h1 {
+    font-size: 3rem;
+    font-weight: 800;
+    margin-bottom: 0.5rem;
 }
 
 .prices-header h2 {
@@ -15,34 +21,49 @@
 }
 
 .prices-header p {
-    margin: 0;
-    color: var(--color-text-light);
+    font-size: 1.05rem;
+    color: #94a3b8;
 }
 
 .prices-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
-    gap: 1rem;
-    max-width: 64rem;
-    margin: 0 auto;
+    grid-template-columns:
+        repeat(auto-fill, minmax(300px, 1fr));
+    gap: 1.25rem;
 }
 
 .price-card {
-    gap: 1rem;
+    min-height: 180px;
+    background: #202630;
+    border: 1px solid #2b3139;
+    border-radius: 12px;
+    padding: 1.25rem;
+    transition: all 0.2s ease;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+}
+
+.price-card:hover {
+    border-color: #3b82f6;
+    transform: translateY(-2px);
 }
 
 .price-card h3 {
-    margin: 0 0 0.25rem;
-    font-size: 1.15rem;
+    font-size: 1.2rem;
+    margin-bottom: 0.25rem;
 }
 
 .price-card span {
-    color: var(--color-text-light);
-    font-size: 0.9rem;
+    color: #6b7280;
+    font-size: 0.8rem;
+    text-transform: uppercase;
 }
 
 .price-card strong {
-    font-size: 1.5rem;
+    font-size: 2.2rem;
+    font-weight: 700;
+    color: #f8fafc;
 }
 
 .price-card p {
@@ -59,25 +80,63 @@
 }
 
 .watchlist-button {
-    display: inline-block;
-    padding: 0.5rem 1rem;
-    background-color: var(--color-success);
-    color: white;
-    border: 1px solid var(--color-success);
-    border-radius: 0.375rem;
-    cursor: pointer;
-    font-size: 0.9rem;
+    width: 100%;
+    padding: 0.8rem;
+    border-radius: 12px;
+    background: rgba(59,130,246,.12);
+    border: 1px solid rgba(59,130,246,.25);
+    color: #93c5fd;
     font-weight: 600;
-    transition: all 0.2s ease;
+    transition: all .2s ease;
+    margin-top: auto;
 }
 
 .watchlist-button:hover {
-    background-color: #26a69a;
-    border-color: #26a69a;
+    background: #2563eb;
+    border-color: #2563eb;
+    color: white;
     transform: translateY(-2px);
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
 }
 
 .watchlist-button:active {
     transform: translateY(0);
+}
+
+.details-button:hover {
+    border-color: #64748b;
+    background: rgba(255,255,255,0.04);
+}
+
+.coin-card-wrapper {
+    position: relative;
+}
+
+.coin-rank {
+    position: absolute;
+    top: 16px;
+    right: 16px;
+    color: #6b7280;
+    font-size: .75rem;
+    font-weight: 700;
+}
+
+.coin-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+}
+
+.coin-price {
+    margin: 1rem 0;
+}
+
+.coin-price strong {
+    font-size: 2.5rem;
+    line-height: 1;
+}
+
+@media (min-width: 1600px) {
+    .prices-page {
+        padding: 2rem 6rem;
+    }
 }

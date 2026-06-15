@@ -1,8 +1,9 @@
 import '../styles/page_style/watchlist.css';
 import { useEffect, useState } from 'react';
 import Button from '../components/Button.jsx';
-import CreateWatchlistModal from '../components/CreateWatchlistModal.jsx';
-import { getWatchlistItems, getWatchlists } from '../utils/api.js';
+import CreateWatchlistModal from '../modals/CreateWatchlistModal.jsx';
+import ConfirmationModal from '../modals/ConfirmationModal.jsx';
+import { getWatchlistItems, getWatchlists, deleteWatchlist } from '../utils/api.js';
 import { useAuth } from '../context/AuthContext';
 
 function Watchlist() {
@@ -13,6 +14,8 @@ function Watchlist() {
     const [selectedWatchlistId, setSelectedWatchlistId] = useState('');
     const [items, setItems] = useState([]);
     const [showCreateModal, setShowCreateModal] = useState(false);
+    const [watchlistToDelete, setWatchlistToDelete] = useState(null);
+    const [deleteLoading, setDeleteLoading] = useState(false);
 
     useEffect(() => {
         const fetchWatchlists = async () => {
@@ -74,6 +77,40 @@ function Watchlist() {
         setSelectedWatchlistId(String(newWatchlist.id));
     };
 
+    const handleDeleteWatchlist = async () => {
+        if (!watchlistToDelete) {
+            return;
+        }
+
+        const watchlistId = watchlistToDelete.id;
+
+        try {
+            setDeleteLoading(true);
+            await deleteWatchlist(user.id, watchlistId);
+
+            const remainingWatchlists = watchlists.filter(
+                (watchlist) => String(watchlist.id) !== String(watchlistId)
+            );
+
+            setWatchlists(remainingWatchlists);
+
+            if (String(selectedWatchlistId) === String(watchlistId)) {
+                setSelectedWatchlistId(
+                    remainingWatchlists.length > 0 ? String(remainingWatchlists[0].id) : ''
+                );
+
+                if (remainingWatchlists.length === 0) {
+                    setItems([]);
+                }
+            }
+            setWatchlistToDelete(null);
+        } catch (err) {
+            setError(err.message);
+        } finally {
+            setDeleteLoading(false);
+        }
+    };
+
     return (
         <main className="watchlist-page">
             {loading && <p className="watchlist-status">Loading watchlist...</p>}
@@ -87,15 +124,37 @@ function Watchlist() {
             ) : !loading && !error && watchlists.length > 0 ? (
                 <div className="watchlist-container">
                     <div className="watchlist-sidebar">
-                        <h3>My Watchlists</h3>
+                        <h3>My Watchlists <button 
+                            className="add-watchlist-btn"
+                            onClick={() => setShowCreateModal(true)}
+                        >
+                            + New
+                        </button>
+                        </h3>
                         <div className="watchlist-list">
                             {watchlists.map((watchlist) => (
                                 <button
-                                    key={watchlist.id}
-                                    className={`watchlist-button ${String(watchlist.id) === selectedWatchlistId ? 'active' : ''}`}
-                                    onClick={() => setSelectedWatchlistId(String(watchlist.id))}
+                                key={watchlist.id}
+                                className={`watchlist-button ${
+                                    String(watchlist.id) === selectedWatchlistId
+                                    ? 'active'
+                                    : ''
+                                }`}
+                                onClick={() =>
+                                    setSelectedWatchlistId(String(watchlist.id))
+                                }
                                 >
-                                    {watchlist.name}
+                                <span>{watchlist.name}</span>
+
+                                <span
+                                    className="watchlist-delete"
+                                    onClick={(e) => {
+                                    e.stopPropagation();
+                                    setWatchlistToDelete(watchlist);
+                                    }}
+                                >
+                                    🗑
+                                </span>
                                 </button>
                             ))}
                         </div>
@@ -103,7 +162,8 @@ function Watchlist() {
 
                     <div className="watchlist-content">
                         <div className="watchlist-header">
-                            <h2>{selectedWatchlist?.name || 'Your Watchlist'}</h2>
+                            <h2>{selectedWatchlist?.name}</h2>
+                            <p>{items.length} coins tracked</p>
                         </div>
 
                         {items.length > 0 ? (
@@ -116,6 +176,7 @@ function Watchlist() {
                                     Price: $
                                     {Number(item.ticker.price).toLocaleString()}
                                     </p>
+                                    <strong>Change (24h): {item.ticker.change_24h ?? 'N/A'}%</strong>
                                 </div>
                             ))}
                             </div>
@@ -151,6 +212,19 @@ function Watchlist() {
                 <CreateWatchlistModal
                     onClose={() => setShowCreateModal(false)}
                     onSuccess={handleCreateWatchlistSuccess}
+                />
+            )}
+
+            {watchlistToDelete && (
+                <ConfirmationModal
+                    title="Delete watchlist?"
+                    message={`Delete "${watchlistToDelete.name}"? This cannot be undone.`}
+                    confirmLabel="Delete"
+                    cancelLabel="Cancel"
+                    variant="danger"
+                    loading={deleteLoading}
+                    onCancel={() => setWatchlistToDelete(null)}
+                    onConfirm={handleDeleteWatchlist}
                 />
             )}
         </main>
