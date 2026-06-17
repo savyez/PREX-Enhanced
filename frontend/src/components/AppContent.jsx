@@ -1,9 +1,24 @@
 import { useAuth } from '../context/AuthContext';
 import Navbar from './Navbar';
 import Footer from './Footer';
+import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 
 function AppContent({ children }) {
   const { authenticated, user } = useAuth();
+  const navigate = useNavigate();
+  const [navSearchTerm, setNavSearchTerm] = useState('');
+
+  const handleNavSearch = (event) => {
+    event.preventDefault();
+
+    const query = navSearchTerm.trim();
+    if (!query) {
+      return;
+    }
+
+    navigate(`/coins/search/${encodeURIComponent(query)}`);
+  };
 
   const navLinks = authenticated
     ? [
@@ -41,8 +56,13 @@ function AppContent({ children }) {
         links={navLinks}
         action={navAction}
         search={{
+          id: 'nav-coin-search',
+          name: 'navCoinSearch',
           placeholder: 'Search coins...',
           buttonLabel: 'Search',
+          value: navSearchTerm,
+          onChange: (event) => setNavSearchTerm(event.target.value),
+          onSubmit: handleNavSearch,
         }}
       />
 

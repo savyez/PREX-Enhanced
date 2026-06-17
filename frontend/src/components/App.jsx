@@ -38,6 +38,7 @@ function App() {
             <Route path="/profile" element={<Profile />} />
             <Route path="/settings" element={<Settings />} />
             <Route path="/search" element={<Search />} />
+            <Route path="/coins/search/:coinId" element={<Search />} />
             <Route path="/logout" element={<Logout />} />
           </Routes>
         </AppContent>

@@ -203,6 +203,9 @@ const deleteWatchlist = (userId, watchlistId) =>
   });
 
 
+const searchCoins = (coinId) => apiFetch(`/coins/search/${encodeURIComponent(coinId)}/`);
+
+
 export { 
   apiFetch, 
   login, 
@@ -215,4 +218,5 @@ export {
   removeCoinFromWatchlist,
   createWatchlist,
   deleteWatchlist, 
+  searchCoins,
 };

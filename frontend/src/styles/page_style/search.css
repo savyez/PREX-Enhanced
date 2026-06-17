@@ -1,0 +1,42 @@
+.search-page {
+    flex: 1;
+    width: min(72rem, calc(100% - 2rem));
+    margin: 0 auto;
+    padding: 2rem 0 4rem;
+    color: var(--color-text-inverse);
+}
+
+.search-page h1 {
+    margin: 0 0 1.5rem;
+    font-size: 2.5rem;
+    color: var(--color-text-inverse);
+}
+
+.search-page .search-bar {
+    justify-content: flex-start;
+    margin-left: 0;
+    margin-bottom: 1.5rem;
+}
+
+.search-results {
+    display: grid;
+    gap: 1rem;
+}
+
+.search-results > p {
+    margin: 0;
+    color: var(--color-text-light);
+}
+
+.search-result {
+    border: 1px solid var(--color-border-dark);
+    border-radius: 0.5rem;
+    background-color: var(--color-surface-dark);
+    padding: 1rem 1.25rem;
+}
+
+.search-result h2 {
+    margin: 0;
+    color: var(--color-text-inverse);
+    font-size: 1.25rem;
+}

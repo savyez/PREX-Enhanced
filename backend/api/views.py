@@ -1,4 +1,3 @@
-from os import name
 import smtplib
 import requests
 from decouple import config
@@ -151,8 +150,24 @@ def register_user(request):
             return Response({
                 'error': 'Email already exists.'
                 }, status=400)
+        else:
+            token = signing.dumps(
+                {'email': existing_user.email},
+                salt=settings.EMAIL_VERIFICATION_SALT,
+            )
+            verification_url = request.build_absolute_uri(
+                reverse('verify_email', kwargs={'token': token})
+            )
+            try:
+                send_verification_email(existing_user.email, existing_user.username, verification_url)
+            except smtplib.SMTPException as error:
+                return Response({
+                    'error': f'Could not send verification email: {error}'
+                    }, status=status.HTTP_502_BAD_GATEWAY)
 
-    # existing but unverified: resend verification email
+            return Response({
+                'message': 'Verification email resent. Verify your email to complete registration.'
+            }, status=status.HTTP_200_OK)
 
     if User.objects.filter(username=username).exists():
         return Response({
@@ -653,4 +668,38 @@ def delete_watchlist(request, watchlist_id):
     return Response({
         'success': True,
         'message': f'Watchlist {watchlist.name} with {watchlist_id} has been deleted successfully.'
+    })
+
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def search_coins(request, coin_id):
+    query = coin_id.strip()
+
+    coins = Coin.objects.filter(
+        ticker=query.upper()
+    ) | Coin.objects.filter(
+        coin_name=query
+    )
+
+    if not coins.exists():
+        return Response({
+            'success': True,
+            'message': 'No coins found matching the search query.',
+            'coins': []
+        })
+
+    serializer = CoinSerializer(coins, many=True)
+    return Response({
+        'success': True,
+        'coins': serializer.data
+    })
+
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def health_check(request):
+    return Response({
+        'status': 'ok',
+        'message': 'PREX API is healthy and running.'
     })

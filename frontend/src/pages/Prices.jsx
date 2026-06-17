@@ -4,6 +4,7 @@ import CoinCard from '../components/CoinCard.jsx';
 import WatchlistSelector from '../components/WatchlistSelector.jsx';
 import { getCoins } from '../utils/api.js';
 import { useAuth } from '../context/AuthContext';
+import { Navigate, useNavigate } from 'react-router-dom';
 
 function Prices() {
     const { authenticated } = useAuth();
@@ -53,6 +54,11 @@ function Prices() {
         alert(`${selectedCoin.coin_name} added to watchlist!`);
     };
 
+    const handleCardClick = (coin) => {
+        // Navigate to coin details page
+        navigate(`/coins/${coin.ticker}`);
+    }
+
     return (
         <main className="prices-page">
             <section className="prices-header">
@@ -70,6 +76,7 @@ function Prices() {
                         coin={coin}
                         rank={coin.market_cap_rank}
                         onWatchlistClick={() => handleWatchlistClick(coin)}
+                        onCardClick = {() => handleCardClick(coin)}
                     />
                 ))}
             </section>
