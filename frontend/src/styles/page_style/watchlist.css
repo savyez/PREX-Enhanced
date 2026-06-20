@@ -245,6 +245,58 @@
     cursor: pointer;
 }
 
+.details-button {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    padding: 0.9rem 1rem;
+    border-radius: 12px;
+    background: #1f2937;
+    border: 1px solid #374151;
+    color: #e5e7eb;
+    transition: all 0.2s ease;
+    margin-top: 20px;
+}
+
+.details-button:hover {
+    border-color: var(--color-primary);
+    transform: translateX(4px);
+    cursor: pointer;
+}
+
+.details-button {
+    text-decoration: none;
+    color: white;
+    font-size: 1rem;
+}
+
+.remove-item-button {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    padding: 0.9rem 1rem;
+    border-radius: 12px;
+    background: #1f2937;
+    border: 1px solid #374151;
+    color: #e5e7eb;
+    transition: all 0.2s ease;
+    margin-top: 10px;
+}
+
+.remove-item-button:hover {
+    border-color: var(--color-primary);
+    transform: translateX(4px);
+    cursor: pointer;
+}
+
+.remove-item-button {
+    text-decoration: none;
+    color: rgb(230, 85, 85);
+    font-size: 1rem;
+}
+
 @media (max-width: 768px) {
     .watchlist-container {
         grid-template-columns: 1fr;

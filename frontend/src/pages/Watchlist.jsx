@@ -5,6 +5,8 @@ import CreateWatchlistModal from '../modals/CreateWatchlistModal.jsx';
 import ConfirmationModal from '../modals/ConfirmationModal.jsx';
 import { getWatchlistItems, getWatchlists, deleteWatchlist } from '../utils/api.js';
 import { useAuth } from '../context/AuthContext';
+import { useNavigate } from 'react-router-dom';
+import { removeCoinFromWatchlist } from '../utils/api.js';
 
 function Watchlist() {
     const { user } = useAuth();
@@ -16,6 +18,10 @@ function Watchlist() {
     const [showCreateModal, setShowCreateModal] = useState(false);
     const [watchlistToDelete, setWatchlistToDelete] = useState(null);
     const [deleteLoading, setDeleteLoading] = useState(false);
+    const [coinToRemove, setCoinToRemove] = useState(null);
+    const [removeLoading, setRemoveLoading] = useState(false);
+
+    const navigate = useNavigate();
 
     useEffect(() => {
         const fetchWatchlists = async () => {
@@ -111,6 +117,34 @@ function Watchlist() {
         }
     };
 
+    const handleRemoveCoin = async () => {
+        if (!coinToRemove || !user) return;
+
+        try {
+            setRemoveLoading(true);
+
+            await removeCoinFromWatchlist(
+                user.id,
+                selectedWatchlistId,
+                coinToRemove.ticker.ticker
+            );
+
+            setItems((prev) =>
+                prev.filter(
+                    (item) =>
+                        item.id !== coinToRemove.id
+                )
+            );
+
+            setCoinToRemove(null);
+
+        } catch (err) {
+            setError(err.message);
+        } finally {
+            setRemoveLoading(false);
+        }
+    };
+
     return (
         <main className="watchlist-page">
             {loading && <p className="watchlist-status">Loading watchlist...</p>}
@@ -177,6 +211,19 @@ function Watchlist() {
                                     {Number(item.ticker.price).toLocaleString()}
                                     </p>
                                     <strong>Change (24h): {item.ticker.change_24h ?? 'N/A'}%</strong>
+
+                                    <button className='details-button' 
+                                    onClick={() => navigate(`/coins/search/${item.ticker.ticker}`) }>
+                                        Show Details
+                                    </button>
+
+                                    <button
+                                        className="remove-item-button"
+                                        onClick={() => setCoinToRemove(item)}>
+                                        Remove Item
+                                    </button>
+                                    {}
+
                                 </div>
                             ))}
                             </div>
@@ -217,14 +264,27 @@ function Watchlist() {
 
             {watchlistToDelete && (
                 <ConfirmationModal
-                    title="Delete watchlist?"
-                    message={`Delete "${watchlistToDelete.name}"? This cannot be undone.`}
+                    title={`Delete ${watchlistToDelete.name}? `}
+                    message="This action cannot be undone."
                     confirmLabel="Delete"
                     cancelLabel="Cancel"
                     variant="danger"
                     loading={deleteLoading}
                     onCancel={() => setWatchlistToDelete(null)}
                     onConfirm={handleDeleteWatchlist}
+                />
+            )}
+
+            {coinToRemove && (
+                <ConfirmationModal
+                    title={`Remove ${coinToRemove.ticker.coin_name} from ${selectedWatchlist.name}?`}
+                    message={`This action can not be undone.`}
+                    confirmLabel="Remove"
+                    cancelLabel="Cancel"
+                    variant="danger"
+                    loading={removeLoading}
+                    onCancel={() => setCoinToRemove(null)}
+                    onConfirm={handleRemoveCoin}
                 />
             )}
         </main>
