@@ -1,15 +1,20 @@
-import Button from './Button.jsx';
 import Card from './Card.jsx';
-import { useNavigate } from 'react-router-dom';
 import '../styles/component_style/coinCard.css';
 
-function CoinCard({ coin, rank, onWatchlistClick }) { 
-    const navigate = useNavigate();
+function CoinCard({ coin, rank, onWatchlistClick, onCardClick, }) {
     const price = Number(coin.price).toLocaleString();
-    const change = coin.change_24h ?? 'N/A';
+    const priceChange = Number(coin.price_change_24h);
+    const hasPriceChange = Number.isFinite(priceChange);
+    const priceChangeClass = !hasPriceChange ? 'price-neutral' : priceChange >= 0 ? 'price-up' : 'price-down';
+    const formattedPriceChange = hasPriceChange
+        ? `${priceChange > 0 ? '+' : ''}${priceChange.toFixed(2)}%`
+        : 'N/A';
 
     return (
-        <Card className="price-card" onClick={() => navigate(`/coins/${coin.ticker}`)}>
+        <Card
+            className="price-card"
+            onClick={onCardClick}
+        >
             <div className="coin-header">
                 <div>
                     <h3>{coin.coin_name}</h3>
@@ -21,16 +26,19 @@ function CoinCard({ coin, rank, onWatchlistClick }) {
                 </div>
             </div>
 
-            <p>change: {change}%</p>
+            <p className={`price-change ${priceChangeClass}`}>Change(24h): {formattedPriceChange}</p>
+
             <div className="coin-price">
                 <strong>${price}</strong>
             </div>
+
             <button
                 className="watchlist-button"
                 onClick={(e) => {
                     e.stopPropagation();
                     onWatchlistClick();
-                }}>    
+                }}
+            >
                 Add to Watchlist
             </button>
         </Card>

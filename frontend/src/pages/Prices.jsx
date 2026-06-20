@@ -4,7 +4,7 @@ import CoinCard from '../components/CoinCard.jsx';
 import WatchlistSelector from '../components/WatchlistSelector.jsx';
 import { getCoins } from '../utils/api.js';
 import { useAuth } from '../context/AuthContext';
-import { Navigate, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 
 function Prices() {
     const { authenticated } = useAuth();
@@ -13,6 +13,8 @@ function Prices() {
     const [error, setError] = useState(null);
     const [selectedCoin, setSelectedCoin] = useState(null);
     const [showWatchlistSelector, setShowWatchlistSelector] = useState(false);
+
+    const navigate = useNavigate();
 
     useEffect(() => {
         const fetchCoins = async () => {
@@ -54,18 +56,14 @@ function Prices() {
         alert(`${selectedCoin.coin_name} added to watchlist!`);
     };
 
-    const handleCardClick = (coin) => {
-        // Navigate to coin details page
-        navigate(`/coins/${coin.ticker}`);
-    }
+    const handleCardClick = (ticker) => {
+        navigate(`/coins/search/${ticker}`);
+    };
 
     return (
         <main className="prices-page">
             <section className="prices-header">
-                <h1>Top Cryptocurrencies</h1>
-                <p>
-                    Track prices and add coins to your watchlists.
-                </p>
+                <h1 className='top-header'>Top Cryptocurrencies</h1>
             </section>
             {isLoading && <p>Loading prices...</p>}
             {error && <p className="price-down">{error}</p>}
@@ -76,7 +74,7 @@ function Prices() {
                         coin={coin}
                         rank={coin.market_cap_rank}
                         onWatchlistClick={() => handleWatchlistClick(coin)}
-                        onCardClick = {() => handleCardClick(coin)}
+                        onCardClick = {() => handleCardClick(coin.ticker)}
                     />
                 ))}
             </section>

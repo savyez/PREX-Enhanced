@@ -8,6 +8,26 @@ import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { removeCoinFromWatchlist } from '../utils/api.js';
 
+const formatPriceChange = (priceChange) => {
+    const numericChange = Number(priceChange);
+
+    if (!Number.isFinite(numericChange)) {
+        return 'N/A';
+    }
+
+    return `${numericChange > 0 ? '+' : ''}${numericChange.toFixed(2)}%`;
+};
+
+const getPriceChangeClass = (priceChange) => {
+    const numericChange = Number(priceChange);
+
+    if (!Number.isFinite(numericChange)) {
+        return 'price-neutral';
+    }
+
+    return numericChange >= 0 ? 'price-up' : 'price-down';
+};
+
 function Watchlist() {
     const { user } = useAuth();
     const [loading, setLoading] = useState(true);
@@ -210,7 +230,9 @@ function Watchlist() {
                                     Price: $
                                     {Number(item.ticker.price).toLocaleString()}
                                     </p>
-                                    <strong>Change (24h): {item.ticker.change_24h ?? 'N/A'}%</strong>
+                                    <strong className={`watchlist-price-change ${getPriceChangeClass(item.ticker.price_change_24h)}`}>
+                                        Change (24h): {formatPriceChange(item.ticker.price_change_24h)}
+                                    </strong>
 
                                     <button className='details-button' 
                                     onClick={() => navigate(`/coins/search/${item.ticker.ticker}`) }>

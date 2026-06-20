@@ -91,6 +91,30 @@
     font-weight: 600;
 }
 
+.watchlist-item strong {
+    margin: 0;
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: azure;
+}
+
+.watchlist-price-change {
+    display: block;
+    margin-top: 0.5rem;
+}
+
+.watchlist-price-change.price-up {
+    color: var(--color-success);
+}
+
+.watchlist-price-change.price-down {
+    color: var(--color-danger);
+}
+
+.watchlist-price-change.price-neutral {
+    color: var(--color-text-light);
+}
+
 .empty-watchlist {
     display: flex;
     min-height: 60vh;

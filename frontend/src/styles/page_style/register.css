@@ -40,6 +40,14 @@
     font-weight: 700;
 }
 
+.error-message {
+    display: flex;
+    border: 5px white;
+    color: rgb(214, 71, 71);
+    text-align: center;
+    justify-content: center;
+}
+
 @media (max-width: 480px) {
     .register {
         align-items: flex-start;

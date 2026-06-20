@@ -44,6 +44,26 @@ const formatCur = (market_volume) => {
     return formattedCurrency
 }
 
+const formatPriceChange = (price_change_24h) => {
+    const numericChange = Number(price_change_24h);
+
+    if (!Number.isFinite(numericChange)) {
+        return 'N/A';
+    }
+
+    return `${numericChange > 0 ? '+' : ''}${numericChange.toFixed(2)}%`;
+};
+
+const getPriceChangeClass = (price_change_24h) => {
+    const numericChange = Number(price_change_24h);
+
+    if (!Number.isFinite(numericChange)) {
+        return 'price-neutral';
+    }
+
+    return numericChange >= 0 ? 'price-up' : 'price-down';
+};
+
 const Search = () => {
   const { coinId } = useParams();
   const navigate = useNavigate();
@@ -118,6 +138,9 @@ const Search = () => {
             <h2>Name: {coin.coin_name}</h2>
             <p>Ticker: <b>{coin.ticker}</b></p>
             <p>Price: ${formatPrice(coin.price)}</p>
+            <p className={getPriceChangeClass(coin.price_change_24h)}>
+              Change (24h): {formatPriceChange(coin.price_change_24h)}
+            </p>
             <p>Total Market Volume: {formatCur(coin.market_volume)}</p>
             <p>Market Cap Rank: {coin.market_cap_rank}</p>
             <p>Last Updated at: {formatTime(coin.last_updated_at)}</p>

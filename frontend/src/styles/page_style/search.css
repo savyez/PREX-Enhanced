@@ -40,3 +40,15 @@
     color: var(--color-text-inverse);
     font-size: 1.25rem;
 }
+
+.search-result .price-up {
+    color: var(--color-success);
+}
+
+.search-result .price-down {
+    color: var(--color-danger);
+}
+
+.search-result .price-neutral {
+    color: var(--color-text-light);
+}

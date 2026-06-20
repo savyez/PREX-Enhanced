@@ -22,7 +22,7 @@
 
 .prices-header p {
     font-size: 1.05rem;
-    color: #94a3b8;
+    color: #d2d5da;
 }
 
 .prices-grid {
@@ -34,7 +34,7 @@
 
 .price-card {
     min-height: 180px;
-    background: #202630;
+    background: #dbdde0;
     border: 1px solid #2b3139;
     border-radius: 12px;
     padding: 1.25rem;
@@ -133,6 +133,11 @@
 .coin-price strong {
     font-size: 2.5rem;
     line-height: 1;
+}
+
+.top-header {
+    margin-top: auto;
+    color: rgba(255, 255, 255, 0.774)
 }
 
 @media (min-width: 1600px) {

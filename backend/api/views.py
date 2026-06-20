@@ -42,6 +42,7 @@ def send_verification_email(to_email, username, verification_url):
         f'Hi {username},\n\n'
         f'Click this link to verify your email:\n{verification_url}\n\n'
         'This link will expire in 10 minutes.'
+        f'Note: *This is an automated mail, do not reply.*'
     )
 
     smtp_class = smtplib.SMTP_SSL if settings.EMAIL_USE_SSL else smtplib.SMTP
@@ -59,7 +60,9 @@ def send_password_reset_email(to_email, username, reset_url):
     message.set_content(
         f'Hi {username},\n\n'
         f'Click this link to reset your password:\n{reset_url}\n\n'
-        'This link will expire in 10 minutes.'
+        'This link will expire in 10 minutes.\n\n' 
+        f'Note: *This is an automated mail, do not reply.*'
+        ""
     )
 
     smtp_class = smtplib.SMTP_SSL if settings.EMAIL_USE_SSL else smtplib.SMTP
@@ -116,6 +119,7 @@ def coin_list(request):
                 'market_volume': coin_data['total_volume'],
                 'last_updated_at': coin_data['last_updated'],
                 'market_cap_rank': coin_data['market_cap_rank'],
+                'price_change_24h': coin_data.get('price_change_percentage_24h') or 0,
             }
         )
     coins = Coin.objects.all()

@@ -8,21 +8,22 @@
 .coin-rank {
     font-size: 0.75rem;
     font-weight: 600;
-    color: #94a3b8;
+    color: #a8acb3;
     padding: 4px 8px;
     border-radius: 999px;
     background: rgba(255,255,255,0.05);
-    border: 1px solid rgba(255,255,255,0.08);
+    border: 1px solid rgba(255, 255, 255, 0.192);
 }
 
 .coin-header h3 {
     margin: 0;
-    font-size: 1rem;
+    font-size: 1.5rem;
     font-weight: 600;
+    color: azure;
 }
 
 .coin-header span {
-    color: #848e9c;
+    color: #9ea4ac;
     font-size: .85rem;
 }
 
@@ -35,4 +36,23 @@
     font-size: 2rem;
     font-weight: 700;
     color: white;
+}
+
+.price-change {
+    margin: 0;
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: azure;
+}
+
+.price-change.price-up {
+    color: var(--color-success);
+}
+
+.price-change.price-down {
+    color: var(--color-danger);
+}
+
+.price-change.price-neutral {
+    color: #9ea4ac;
 }
