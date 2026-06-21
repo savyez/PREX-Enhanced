@@ -46,6 +46,8 @@ class UserManager(BaseUserManager):
 # Model for the User, representing a user of the application with their details and authentication information.
 class User(AbstractBaseUser, PermissionsMixin):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    first_name = models.CharField(max_length=50, default="")
+    last_name = models.CharField(max_length=50, default="")
     username = models.CharField(max_length=150, unique=True)
     dob = models.DateField()
     email = models.EmailField(unique=True)

@@ -136,6 +136,44 @@ class ApiIntegrationTests(APITestCase):
         self.assertIn('refresh_token', response.data)
         self.assertEqual(response.data['user']['email'], 'fay@example.com')
 
+    def test_update_user_updates_authenticated_users_profile(self):
+        user = self.create_user('gail', 'gail@example.com', 'Password123!', email_confirmed=True)
+        self.authenticate_user('gail', 'gail@example.com', 'Password123!')
+
+        response = self.client.patch(
+            reverse('update_user', kwargs={'user_id': str(user.id)}),
+            data={
+                'first_name': 'Gail',
+                'last_name': 'Rivera',
+                'username': 'GailR',
+            },
+            format='json'
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data['user']['first_name'], 'Gail')
+        self.assertEqual(response.data['user']['last_name'], 'Rivera')
+        self.assertEqual(response.data['user']['username'], 'gailr')
+
+        user.refresh_from_db()
+        self.assertEqual(user.first_name, 'Gail')
+        self.assertEqual(user.last_name, 'Rivera')
+        self.assertEqual(user.username, 'gailr')
+
+    def test_update_user_rejects_existing_username(self):
+        self.create_user('henry', 'henry@example.com', 'Password123!', email_confirmed=True)
+        user = self.create_user('iris', 'iris@example.com', 'Password123!', email_confirmed=True)
+        self.authenticate_user('iris', 'iris@example.com', 'Password123!')
+
+        response = self.client.patch(
+            reverse('update_user', kwargs={'user_id': str(user.id)}),
+            data={'username': 'henry'},
+            format='json'
+        )
+
+        self.assertEqual(response.status_code, 409)
+        self.assertEqual(response.data['error'], 'username already exists, try a new one.')
+
     @patch('api.views.smtplib.SMTP')
     @patch('api.views.smtplib.SMTP_SSL')
     def test_reset_password_flow_updates_password(self, smtp_ssl_mock, smtp_mock):

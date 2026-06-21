@@ -7,13 +7,6 @@ import '../styles/page_style/login.css';
 
 const loginFields = [
   {
-    name: 'username',
-    label: 'Username',
-    type: 'text',
-    required: true,
-    autoComplete: 'username',
-  },
-  {
     name: 'email',
     label: 'Email',
     type: 'email',

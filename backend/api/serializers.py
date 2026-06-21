@@ -5,7 +5,7 @@ from .models import User, Coin, Watchlist, WatchlistItem
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
-        fields = ['id', 'username', 'email']
+        fields = ['id', 'first_name', 'last_name', 'username', 'dob', 'email']
         read_only_fields = ['id']
 
 

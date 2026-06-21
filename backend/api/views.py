@@ -130,6 +130,57 @@ def coin_list(request):
     })
 
 
+#view to update user info through profile page.
+@api_view(['PATCH'])
+@permission_classes([IsAuthenticated])
+def update_user(request, user_id):
+
+    if str(request.user.id) != str(user_id):
+        return Response({
+            'error': 'You do not have permission to update this user.'
+            }, status=status.HTTP_403_FORBIDDEN)
+    
+    data = request.data
+
+    if not data:
+        return Response({
+            'error': 'Please enter the updated data'
+        }, status=status.HTTP_400_BAD_REQUEST)
+
+    allowed_fields = {'first_name', 'last_name', 'username'}
+    invalid_fields = set(data.keys()) - allowed_fields
+    if invalid_fields:
+        return Response({
+            'error': f'Invalid field(s): {", ".join(sorted(invalid_fields))}.'
+        }, status=status.HTTP_400_BAD_REQUEST)
+
+    user = request.user
+    if 'username' in data:
+        new_username = normalize_username(data.get('username'))
+        if not new_username:
+            return Response({
+                'error': 'username cannot be empty.'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        if User.objects.filter(username=new_username).exclude(id=user.id).exists():
+            return Response ({
+                'error': 'username already exists, try a new one.'
+            }, status=status.HTTP_409_CONFLICT)
+        user.username = new_username
+
+    if 'first_name' in data:
+        user.first_name = data.get('first_name', '').strip()
+
+    if 'last_name' in data:
+        user.last_name = data.get('last_name', '').strip()
+
+    user.save(update_fields=['first_name', 'last_name', 'username', 'updated_at'])
+    return Response({
+        'success': True,
+        'message': 'Profile updated successfully.',
+        'user': UserSerializer(user).data
+    })
+
+
 # View to handle user registration, including validation, password hashing, 
 # and sending a verification email.
 @api_view(['POST'])
@@ -257,16 +308,15 @@ def verify_email(request, token):
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def user_login(request):
-    username = normalize_username(request.data.get('username'))
     email = normalize_email(request.data.get('email'))
     password = request.data.get('password')
 
-    if not all([username, email, password]):
+    if not all([email, password]):
         return Response({
-            'error': 'Username, email, and password are required for login.'
+            'error': 'email, and password are required for login.'
         }, status=status.HTTP_400_BAD_REQUEST)
 
-    user = User.objects.filter(username=username, email=email).first()
+    user = User.objects.filter(email=email).first()
 
     if not user or not user.check_password(password):
         return Response({
@@ -303,9 +353,7 @@ def user_login(request):
 def current_user(request):
     user = request.user
     return Response({
-        'user_id': user.id,
-        'username': user.username,
-        'email': user.email
+        'user': UserSerializer(user).data
     })
 
 
