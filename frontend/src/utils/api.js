@@ -203,6 +203,13 @@ const deleteWatchlist = (userId, watchlistId) =>
   });
 
 
+const updateUserProfile = (userId, profileData) =>
+  apiFetch(`/users/${userId}/`, {
+    method: 'PATCH',
+    body: JSON.stringify(profileData),
+  });
+
+
 const searchCoins = (coinId) => apiFetch(`/coins/search/${encodeURIComponent(coinId)}/`);
 
 
@@ -218,5 +225,6 @@ export {
   removeCoinFromWatchlist,
   createWatchlist,
   deleteWatchlist, 
+  updateUserProfile,
   searchCoins,
 };

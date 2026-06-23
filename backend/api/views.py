@@ -9,7 +9,6 @@ from django.conf import settings
 from django.utils import timezone
 from email.message import EmailMessage
 from django.core.exceptions import ValidationError
-from django.contrib.auth.base_user import BaseUserManager
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.decorators import api_view, permission_classes
@@ -17,6 +16,9 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.exceptions import TokenError
 from django.contrib.auth.password_validation import validate_password
+from django.core.mail import EmailMultiAlternatives
+from django.template.loader import render_to_string
+from .helpers import get_signed_payload, normalize_email_value, normalize_username_value
 
 # Constants for CoinGecko API access
 COINGECKO_API_URL = config('COINGECKO_API_URL')
@@ -25,52 +27,36 @@ HEADERS = {
 }
 
 
-def normalize_username(username):
-    return username.strip().lower() if username else username
-
-
-def normalize_email(email):
-    return BaseUserManager.normalize_email(email.strip()) if email else email
-
 # Function to send verification email using SMTP
 def send_verification_email(to_email, username, verification_url):
-    message = EmailMessage()
-    message['Subject'] = 'Verify your PREX account'
-    message['From'] = settings.DEFAULT_FROM_EMAIL
-    message['To'] = to_email
-    message.set_content(
-        f'Hi {username},\n\n'
-        f'Click this link to verify your email:\n{verification_url}\n\n'
-        'This link will expire in 10 minutes.'
-        f'Note: *This is an automated mail, do not reply.*'
-    )
+    html_content = render_to_string('api/emails/verify_email.html', {
+        'user': {'first_name': username},
+        'verification_url': verification_url,
+    })
 
-    smtp_class = smtplib.SMTP_SSL if settings.EMAIL_USE_SSL else smtplib.SMTP
-    with smtp_class(settings.EMAIL_HOST, settings.EMAIL_PORT) as smtp:
-        if settings.EMAIL_USE_TLS and not settings.EMAIL_USE_SSL:
-            smtp.starttls()
-        smtp.login(settings.EMAIL_HOST_USER, settings.EMAIL_HOST_PASSWORD)
-        smtp.send_message(message)
+    email = EmailMultiAlternatives(
+        subject='Verify your PREX account',
+        body=f'Hi {username}, verify your email: {verification_url}',
+        from_email=settings.DEFAULT_FROM_EMAIL,
+        to=[to_email],
+    )
+    email.attach_alternative(html_content, "text/html")
+    email.send()
 
 def send_password_reset_email(to_email, username, reset_url):
-    message = EmailMessage()
-    message['Subject'] = 'Reset your PREX password'
-    message['From'] = settings.DEFAULT_FROM_EMAIL
-    message['To'] = to_email
-    message.set_content(
-        f'Hi {username},\n\n'
-        f'Click this link to reset your password:\n{reset_url}\n\n'
-        'This link will expire in 10 minutes.\n\n' 
-        f'Note: *This is an automated mail, do not reply.*'
-        ""
-    )
+    html_content = render_to_string('api/emails/reset_password.html', {
+        'username': username,
+        'reset_password_url': reset_url,
+    })
 
-    smtp_class = smtplib.SMTP_SSL if settings.EMAIL_USE_SSL else smtplib.SMTP
-    with smtp_class(settings.EMAIL_HOST, settings.EMAIL_PORT) as smtp:
-        if settings.EMAIL_USE_TLS and not settings.EMAIL_USE_SSL:
-            smtp.starttls()
-        smtp.login(settings.EMAIL_HOST_USER, settings.EMAIL_HOST_PASSWORD)
-        smtp.send_message(message)
+    email = EmailMultiAlternatives(
+        subject='Reset your PREX password',
+        body=f'Hi {username}, reset your password: {reset_url}',
+        from_email=settings.DEFAULT_FROM_EMAIL,
+        to=[to_email],
+    )
+    email.attach_alternative(html_content, "text/html")
+    email.send()
 
 
 # Simple view to test the API endpoint
@@ -89,6 +75,56 @@ def refresh_user_tokens(user):
     }
 
 
+def build_error_response(message, status_code=status.HTTP_400_BAD_REQUEST):
+    return Response({'error': message}, status=status_code)
+
+
+def parse_request_data(request):
+    if request.data is None:
+        return {}
+
+    if not isinstance(request.data, dict):
+        raise ValueError('Request body must be valid JSON.')
+
+    return request.data
+
+
+def build_user_update_payload(data):
+    allowed_fields = {'first_name', 'last_name', 'username'}
+    invalid_fields = set(data.keys()) - allowed_fields
+    if invalid_fields:
+        raise ValueError(f'Invalid field(s): {", ".join(sorted(invalid_fields))}.')
+
+    payload = {}
+
+    first_name = str(data.get('first_name', '')).strip()
+    last_name = str(data.get('last_name', '')).strip()
+    username = normalize_username_value(data.get('username'))
+
+    if 'first_name' in data and first_name:
+        payload['first_name'] = first_name
+
+    if 'last_name' in data and last_name:
+        payload['last_name'] = last_name
+
+    if 'username' in data:
+        if not username:
+            raise ValueError('username cannot be empty.')
+        payload['username'] = username
+
+    return payload
+
+
+def validate_authenticated_user_scope(request, user_id):
+    if str(request.user.id) != str(user_id):
+        return build_error_response(
+            'You do not have permission to update this user.',
+            status.HTTP_403_FORBIDDEN
+        )
+
+    return None
+
+
 # View to fetch the latest coin data from the CoinGecko API and update the database accordingly.
 @api_view(['GET'])
 @permission_classes([AllowAny])
@@ -103,24 +139,37 @@ def coin_list(request):
         }, headers=HEADERS)
         response.raise_for_status()
 
-    except requests.RequestException as error:
-        return Response({
-            "error": str(error)
-            }, status=status.HTTP_502_BAD_GATEWAY)
+    except requests.RequestException:
+        return build_error_response(
+            'Unable to fetch live coin data right now. Please try again later.',
+            status.HTTP_502_BAD_GATEWAY
+        ) 
 
-    data = response.json()
+    try:
+        data = response.json()
+    except ValueError:
+        return build_error_response(
+            'Coin data service returned an invalid response.',
+            status.HTTP_502_BAD_GATEWAY
+        )
 
-    for coin_data in data:
-        Coin.objects.update_or_create(
-            ticker=coin_data['symbol'].upper(),
-            defaults={
-                'coin_name': coin_data['name'],
-                'price': coin_data['current_price'],
-                'market_volume': coin_data['total_volume'],
-                'last_updated_at': coin_data['last_updated'],
-                'market_cap_rank': coin_data['market_cap_rank'],
-                'price_change_24h': coin_data.get('price_change_percentage_24h') or 0,
-            }
+    try:
+        for coin_data in data:
+            Coin.objects.update_or_create(
+                ticker=coin_data['symbol'].upper(),
+                defaults={
+                    'coin_name': coin_data['name'],
+                    'price': coin_data['current_price'],
+                    'market_volume': coin_data['total_volume'],
+                    'last_updated_at': coin_data['last_updated'],
+                    'market_cap_rank': coin_data['market_cap_rank'],
+                    'price_change_24h': coin_data.get('price_change_percentage_24h') or 0,
+                }
+            )
+    except (KeyError, TypeError, ValueError):
+        return build_error_response(
+            'Coin data is missing expected fields.',
+            status.HTTP_502_BAD_GATEWAY
         )
     coins = Coin.objects.all()
     serializer = CoinSerializer(coins, many=True)
@@ -134,46 +183,37 @@ def coin_list(request):
 @api_view(['PATCH'])
 @permission_classes([IsAuthenticated])
 def update_user(request, user_id):
+    permission_error = validate_authenticated_user_scope(request, user_id)
+    if permission_error:
+        return permission_error
 
-    if str(request.user.id) != str(user_id):
-        return Response({
-            'error': 'You do not have permission to update this user.'
-            }, status=status.HTTP_403_FORBIDDEN)
-    
-    data = request.data
+    try:
+        data = parse_request_data(request)
+        payload = build_user_update_payload(data)
+    except ValueError as error:
+        return build_error_response(str(error))
 
-    if not data:
-        return Response({
-            'error': 'Please enter the updated data'
-        }, status=status.HTTP_400_BAD_REQUEST)
-
-    allowed_fields = {'first_name', 'last_name', 'username'}
-    invalid_fields = set(data.keys()) - allowed_fields
-    if invalid_fields:
-        return Response({
-            'error': f'Invalid field(s): {", ".join(sorted(invalid_fields))}.'
-        }, status=status.HTTP_400_BAD_REQUEST)
+    if not payload:
+        return build_error_response('Please provide at least one field to update.')
 
     user = request.user
-    if 'username' in data:
-        new_username = normalize_username(data.get('username'))
-        if not new_username:
-            return Response({
-                'error': 'username cannot be empty.'
-            }, status=status.HTTP_400_BAD_REQUEST)
-        if User.objects.filter(username=new_username).exclude(id=user.id).exists():
-            return Response ({
-                'error': 'username already exists, try a new one.'
-            }, status=status.HTTP_409_CONFLICT)
-        user.username = new_username
+    if 'username' in payload and User.objects.filter(username=payload['username']).exclude(id=user.id).exists():
+        return build_error_response(
+            'username already exists, try a new one.',
+            status.HTTP_409_CONFLICT
+        )
 
-    if 'first_name' in data:
-        user.first_name = data.get('first_name', '').strip()
+    for field, value in payload.items():
+        setattr(user, field, value)
 
-    if 'last_name' in data:
-        user.last_name = data.get('last_name', '').strip()
+    try:
+        user.save(update_fields=[*payload.keys(), 'updated_at'])
+    except Exception:
+        return build_error_response(
+            'Unable to update your profile right now. Please try again later.',
+            status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
 
-    user.save(update_fields=['first_name', 'last_name', 'username', 'updated_at'])
     return Response({
         'success': True,
         'message': 'Profile updated successfully.',
@@ -186,25 +226,24 @@ def update_user(request, user_id):
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def register_user(request):
-    data = request.data
+    try:
+        data = parse_request_data(request)
+    except ValueError as error:
+        return build_error_response(str(error))
 
-    username = normalize_username(data.get('username'))
+    username = normalize_username_value(data.get('username'))
     dob = data.get('dob')
-    email = normalize_email(data.get('email'))
+    email = normalize_email_value(data.get('email'))
     password = data.get('password')
 
     if not all([username, dob, email, password]):
-        return Response({
-            'error': 'username, dob, email, and password are required.'
-            }, status=status.HTTP_400_BAD_REQUEST)
+        return build_error_response('username, dob, email, and password are required.')
 
     existing_user = User.objects.filter(email=email).first()
 
     if existing_user:
         if existing_user.email_confirmed:
-            return Response({
-                'error': 'Email already exists.'
-                }, status=400)
+            return build_error_response('Email already exists.')
         else:
             token = signing.dumps(
                 {'email': existing_user.email},
@@ -216,25 +255,22 @@ def register_user(request):
             try:
                 send_verification_email(existing_user.email, existing_user.username, verification_url)
             except smtplib.SMTPException as error:
-                return Response({
-                    'error': f'Could not send verification email: {error}'
-                    }, status=status.HTTP_502_BAD_GATEWAY)
+                return build_error_response(
+                    f'Could not send verification email: {error}',
+                    status.HTTP_502_BAD_GATEWAY
+                )
 
             return Response({
                 'message': 'Verification email resent. Verify your email to complete registration.'
             }, status=status.HTTP_200_OK)
 
     if User.objects.filter(username=username).exists():
-        return Response({
-            'error': 'Username already exists.'
-            }, status=status.HTTP_400_BAD_REQUEST)
+        return build_error_response('Username already exists.')
 
     try:
         validate_password(password)
     except ValidationError as e:
-        return Response({
-            'error': list(e.messages)
-        }, status=status.HTTP_400_BAD_REQUEST)
+        return build_error_response(' '.join(e.messages))
 
     # Create inactive user with verified password (user must verify email to activate)
     User.objects.create_user(
@@ -259,9 +295,10 @@ def register_user(request):
     except smtplib.SMTPException as error:
         # Delete the user if email sending fails
         User.objects.filter(email=email).delete()
-        return Response({
-            'error': f'Could not send verification email: {error}'
-            }, status=status.HTTP_502_BAD_GATEWAY)
+        return build_error_response(
+            f'Could not send verification email: {error}',
+            status.HTTP_502_BAD_GATEWAY
+        )
 
     return Response({
         'message': 'Verification email sent. Verify your email to complete registration.'
@@ -274,23 +311,21 @@ def register_user(request):
 @permission_classes([AllowAny])
 def verify_email(request, token):
     try:
-        payload = signing.loads(
+        payload = get_signed_payload(
             token,
-            salt=settings.EMAIL_VERIFICATION_SALT,
-            max_age=settings.EMAIL_VERIFICATION_MAX_AGE_SECONDS,
+            settings.EMAIL_VERIFICATION_SALT,
+            settings.EMAIL_VERIFICATION_MAX_AGE_SECONDS,
         )
-    except signing.SignatureExpired:
-        return Response({'error': 'Verification link has expired.'}, status=status.HTTP_400_BAD_REQUEST)
-    except signing.BadSignature:
-        return Response({'error': 'Invalid verification link.'}, status=status.HTTP_400_BAD_REQUEST)
+    except ValueError as error:
+        return build_error_response(str(error))
 
-    email = normalize_email(payload.get('email'))
+    email = normalize_email_value(payload.get('email'))
     if not email:
-        return Response({'error': 'Invalid verification link.'}, status=status.HTTP_400_BAD_REQUEST)
+        return build_error_response('Invalid verification link.')
 
     user = User.objects.filter(email=email).first()
     if not user:
-        return Response({'error': 'User not found. Please register again.'}, status=status.HTTP_404_NOT_FOUND)
+        return build_error_response('User not found. Please register again.', status.HTTP_404_NOT_FOUND)
 
     if user.email_confirmed:
         return Response({'message': 'Email is already verified.'})
@@ -308,25 +343,27 @@ def verify_email(request, token):
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def user_login(request):
-    email = normalize_email(request.data.get('email'))
-    password = request.data.get('password')
+    try:
+        data = parse_request_data(request)
+    except ValueError as error:
+        return build_error_response(str(error))
+
+    email = normalize_email_value(data.get('email'))
+    password = data.get('password')
 
     if not all([email, password]):
-        return Response({
-            'error': 'email, and password are required for login.'
-        }, status=status.HTTP_400_BAD_REQUEST)
+        return build_error_response('email and password are required for login.')
 
     user = User.objects.filter(email=email).first()
 
     if not user or not user.check_password(password):
-        return Response({
-            'error': 'Invalid username, email, or password.'
-        }, status=status.HTTP_401_UNAUTHORIZED)
+        return build_error_response('Invalid email or password.', status.HTTP_401_UNAUTHORIZED)
 
     if not user.email_confirmed:
-        return Response({
-            'error': 'Email not verified. Please verify your email before logging in.'
-        }, status=status.HTTP_403_FORBIDDEN)
+        return build_error_response(
+            'Email not verified. Please verify your email before logging in.',
+            status.HTTP_403_FORBIDDEN
+        )
 
     refresh = RefreshToken.for_user(user)
     refresh_token = str(refresh)
@@ -361,18 +398,19 @@ def current_user(request):
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def reset_password(request):
-    email = normalize_email(request.data.get('email'))
+    try:
+        data = parse_request_data(request)
+    except ValueError as error:
+        return build_error_response(str(error))
+
+    email = normalize_email_value(data.get('email'))
 
     if not email:
-        return Response({
-            'error': 'Email is required to reset password.'
-            }, status=status.HTTP_400_BAD_REQUEST)
+        return build_error_response('Email is required to reset password.')
 
     user = User.objects.filter(email=email).first()
     if not user:
-        return Response({
-            "message": "If email exists, reset instructions sent."
-            })
+        return Response({"message": "If email exists, reset instructions sent."})
 
     token = signing.dumps(
         {'email': user.email},
@@ -385,7 +423,7 @@ def reset_password(request):
     try:
         send_password_reset_email(email, user.username, reset_url)
     except smtplib.SMTPException:
-        return Response({'error': 'Failed to send password reset email.'}, status=status.HTTP_502_BAD_GATEWAY)
+        return build_error_response('Failed to send password reset email.', status.HTTP_502_BAD_GATEWAY)
 
     return Response({
         'success': True,
@@ -399,51 +437,39 @@ def reset_password(request):
 @permission_classes([AllowAny])
 def reset_password_confirm(request, token):
     try:
-        payload = signing.loads(
+        data = parse_request_data(request)
+    except ValueError as error:
+        return build_error_response(str(error))
+
+    try:
+        payload = get_signed_payload(
             token,
-            salt=settings.PASSWORD_RESET_SALT,
-            max_age=settings.PASSWORD_RESET_MAX_AGE_SECONDS,
+            settings.PASSWORD_RESET_SALT,
+            settings.PASSWORD_RESET_MAX_AGE_SECONDS,
         )
-    except signing.SignatureExpired:
-        return Response({'success': False, 'error': 'Password reset link has expired.'}, status=status.HTTP_400_BAD_REQUEST)
-    except signing.BadSignature:
-        return Response({'success': False, 'error': 'Invalid password reset link.'}, status=status.HTTP_400_BAD_REQUEST)
+    except ValueError as error:
+        return build_error_response(str(error))
 
-    user = User.objects.filter(email=normalize_email(payload.get('email'))).first()
+    user = User.objects.filter(email=normalize_email_value(payload.get('email'))).first()
     if not user:
-        return Response({
-            'success': False,
-            'error': 'Invalid password reset link.'
-            }, status=status.HTTP_400_BAD_REQUEST)
+        return build_error_response('Invalid password reset link.')
 
-    new_password = request.data.get('new_password')
-    confirm_new_password = request.data.get('confirm_new_password')
+    new_password = data.get('new_password')
+    confirm_new_password = data.get('confirm_new_password')
 
     if not new_password or not confirm_new_password:
-        return Response({
-            'success': False,
-            'error': 'New password and confirm new password are required.'
-            }, status=status.HTTP_400_BAD_REQUEST)
+        return build_error_response('New password and confirm new password are required.')
 
     if new_password != confirm_new_password:
-        return Response({
-            'success': False,
-            'error': 'New password and confirm new password do not match.'
-            }, status=status.HTTP_400_BAD_REQUEST)
+        return build_error_response('New password and confirm new password do not match.')
 
     try:
         validate_password(new_password)
     except ValidationError as e:
-        return Response({
-            'success': False,
-            'error': list(e.messages)
-            }, status=status.HTTP_400_BAD_REQUEST)
+        return build_error_response(' '.join(e.messages))
 
     if user.check_password(new_password):
-        return Response({
-            'success': False,
-            'error': 'New password cannot be the same as the old password.'
-        }, status=status.HTTP_400_BAD_REQUEST)
+        return build_error_response('New password cannot be the same as the old password.')
 
     user.set_password(new_password)
     user.updated_at = timezone.now()
@@ -463,10 +489,7 @@ def user_logout(request):
     refresh_token = request.data.get('refresh_token')
 
     if not refresh_token:
-        return Response(
-            {'error': 'Refresh token is required.'},
-            status=status.HTTP_400_BAD_REQUEST
-        )
+        return build_error_response('Refresh token is required.')
 
     try:
         token = RefreshToken(refresh_token)
@@ -478,10 +501,7 @@ def user_logout(request):
         })
 
     except TokenError:
-        return Response(
-            {'error': 'Invalid refresh token.'},
-            status=status.HTTP_400_BAD_REQUEST
-        )
+        return build_error_response('Invalid refresh token.')
 
 
 # View to retrieve all watchlists for a specific user, 
@@ -491,15 +511,14 @@ def user_logout(request):
 @permission_classes([IsAuthenticated])
 def user_watchlists(request, user_id):
     if str(request.user.id) != str(user_id):
-        return Response({
-            'error': 'You do not have permission to view this user\'s watchlists.'
-            }, status=status.HTTP_403_FORBIDDEN)
+        return build_error_response(
+            'You do not have permission to view this user\'s watchlists.',
+            status.HTTP_403_FORBIDDEN
+        )
     
     user = User.objects.filter(id=user_id).first()
     if not user: 
-        return Response({
-            'error': 'User not found.'
-            }, status=status.HTTP_404_NOT_FOUND)
+        return build_error_response('User not found.', status.HTTP_404_NOT_FOUND)
     
     watchlists = user.watchlists.all()
     if not watchlists:
@@ -526,16 +545,12 @@ def create_watchlist(request):
 
     watchlist_name = request.data.get('name')
     if not watchlist_name:
-        return Response({
-            'error': 'Watchlist name is required.'
-        }, status=status.HTTP_400_BAD_REQUEST)
+        return build_error_response('Watchlist name is required.')
 
     watchlist_name = watchlist_name.strip()
 
     if user.watchlists.filter(name=watchlist_name).exists():
-        return Response({
-            'error': 'A watchlist with this name already exists.'
-        }, status=status.HTTP_409_CONFLICT)
+        return build_error_response('A watchlist with this name already exists.', status.HTTP_409_CONFLICT)
 
     watchlist = user.watchlists.create(name=watchlist_name)
     serializer = WatchlistSerializer(watchlist)
@@ -555,47 +570,36 @@ def create_watchlist(request):
 def add_coin_to_watchlist(request):
     user_id = request.data.get('user_id')
     if str(request.user.id) != str(user_id):
-        return Response({
-            'error': 'You do not have permission to modify this user\'s watchlists.'
-            }, status=status.HTTP_403_FORBIDDEN)
+        return build_error_response(
+            'You do not have permission to modify this user\'s watchlists.',
+            status.HTTP_403_FORBIDDEN
+        )
     
     user = User.objects.filter(id=user_id).first()
 
     if not user:
-        return Response({
-            'error': 'User not found.'
-            }, status=status.HTTP_404_NOT_FOUND)
+        return build_error_response('User not found.', status.HTTP_404_NOT_FOUND)
     
     watchlist_id = request.data.get('watchlist_id')
     if not watchlist_id:
-        return Response({
-            'error': 'Watchlist ID is required to add a coin to the watchlist.'
-            }, status=status.HTTP_400_BAD_REQUEST)
+        return build_error_response('Watchlist ID is required to add a coin to the watchlist.')
     
     watchlist = user.watchlists.filter(id=watchlist_id).first()
     if not watchlist:
-        return Response({
-            'error': 'Watchlist not found.'
-            }, status=status.HTTP_404_NOT_FOUND)
+        return build_error_response('Watchlist not found.', status.HTTP_404_NOT_FOUND)
     
     ticker = request.data.get('ticker')
     if ticker:
         ticker = ticker.upper()
     else:
-        return Response({
-            'error': 'Ticker is required to add a coin to the watchlist.'
-            }, status=status.HTTP_400_BAD_REQUEST)
+        return build_error_response('Ticker is required to add a coin to the watchlist.')
     
     coin = Coin.objects.filter(ticker=ticker).first()
     if not coin:
-        return Response({
-            'error': 'Coin not found.'
-            }, status=status.HTTP_404_NOT_FOUND)
+        return build_error_response('Coin not found.', status.HTTP_404_NOT_FOUND)
     
     if watchlist.items.filter(ticker=coin).exists():
-        return Response({
-            'error': 'Coin is already in the watchlist.'
-            }, status=status.HTTP_409_CONFLICT)
+        return build_error_response('Coin is already in the watchlist.', status.HTTP_409_CONFLICT)
     
     watchlist.items.create(ticker=coin)
     serializer = WatchlistSerializer(watchlist)
@@ -611,47 +615,36 @@ def add_coin_to_watchlist(request):
 def remove_coin_from_watchlist(request):
     user_id = request.data.get('user_id')
     if str(request.user.id) != str(user_id):
-        return Response({
-            'error': 'You do not have permission to modify this user\'s watchlists.'
-            }, status=status.HTTP_403_FORBIDDEN)
+        return build_error_response(
+            'You do not have permission to modify this user\'s watchlists.',
+            status.HTTP_403_FORBIDDEN
+        )
     
     user = User.objects.filter(id=user_id).first()
 
     if not user:
-        return Response({
-            'error': 'User not found.'
-            }, status=status.HTTP_404_NOT_FOUND)
+        return build_error_response('User not found.', status.HTTP_404_NOT_FOUND)
     
     watchlist_id = request.data.get('watchlist_id')
     if not watchlist_id:
-        return Response({
-            'error': 'Watchlist ID is required to remove a coin from the watchlist.'
-            }, status=status.HTTP_400_BAD_REQUEST)
+        return build_error_response('Watchlist ID is required to remove a coin from the watchlist.')
     
     watchlist = user.watchlists.filter(id=watchlist_id).first()
     if not watchlist:
-        return Response({
-            'error': 'Watchlist not found.'
-            }, status=status.HTTP_404_NOT_FOUND)
+        return build_error_response('Watchlist not found.', status.HTTP_404_NOT_FOUND)
     
     ticker = request.data.get('ticker')
     if not ticker:
-        return Response({
-            'error': 'Ticker is required to remove a coin from the watchlist.'
-            }, status=status.HTTP_400_BAD_REQUEST)
+        return build_error_response('Ticker is required to remove a coin from the watchlist.')
     ticker = ticker.upper()
     
     coin = Coin.objects.filter(ticker=ticker).first()
     if not coin:
-        return Response({
-            'error': 'Coin not found.'
-            }, status=status.HTTP_404_NOT_FOUND)
+        return build_error_response('Coin not found.', status.HTTP_404_NOT_FOUND)
     
     item = watchlist.items.filter(ticker=coin).first()
     if not item:
-        return Response({
-            'error': 'Coin is not in the watchlist.'
-            }, status=status.HTTP_404_NOT_FOUND)
+        return build_error_response('Coin is not in the watchlist.', status.HTTP_404_NOT_FOUND)
     
     item.delete()
     serializer = WatchlistSerializer(watchlist)
@@ -669,21 +662,15 @@ def remove_coin_from_watchlist(request):
 def show_watchlist_items(request, watchlist_id):
     watchlist_id = request.query_params.get('watchlist_id') or watchlist_id
     if not watchlist_id:
-        return Response({
-            'error': 'Watchlist ID is required to view watchlist items.'
-            }, status=status.HTTP_400_BAD_REQUEST)
+        return build_error_response('Watchlist ID is required to view watchlist items.')
     
     watchlist = Watchlist.objects.filter(id=watchlist_id).first()
 
     if not watchlist:
-        return Response({
-            'error': 'Watchlist not found.'
-            }, status=status.HTTP_404_NOT_FOUND)
+        return build_error_response('Watchlist not found.', status.HTTP_404_NOT_FOUND)
 
     if watchlist.user_id != request.user.id:
-        return Response({
-            'error': 'You do not have permission to view this watchlist.'
-            }, status=status.HTTP_403_FORBIDDEN)
+        return build_error_response('You do not have permission to view this watchlist.', status.HTTP_403_FORBIDDEN)
     
     items = watchlist.items.select_related('ticker').all()
     serializer = WatchlistItemDetailSerializer(items, many=True)
@@ -699,22 +686,19 @@ def show_watchlist_items(request, watchlist_id):
 def delete_watchlist(request, watchlist_id):
     user_id = request.data.get('user_id')
     if str(request.user.id) != str(user_id):
-        return Response({
-            'error': 'You do not have permission to modify this user\'s watchlists.'
-            }, status=status.HTTP_403_FORBIDDEN)
+        return build_error_response(
+            'You do not have permission to modify this user\'s watchlists.',
+            status.HTTP_403_FORBIDDEN
+        )
 
     user = User.objects.filter(id=user_id).first()
 
     if not user:
-        return Response({
-            'error': 'User not found.'
-            }, status=status.HTTP_404_NOT_FOUND)
+        return build_error_response('User not found.', status.HTTP_404_NOT_FOUND)
 
     watchlist = user.watchlists.filter(id=watchlist_id).first()
     if not watchlist:
-        return Response({
-            'error': 'Watchlist not found.'
-            }, status=status.HTTP_404_NOT_FOUND)
+        return build_error_response('Watchlist not found.', status.HTTP_404_NOT_FOUND)
     
     watchlist.delete()
     return Response({

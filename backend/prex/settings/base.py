@@ -1,18 +1,13 @@
+"""Base Settings shared between both local.py and production.py"""
+
+
 from datetime import timedelta
 from pathlib import Path
 from decouple import config
 
-# Build paths inside the project like this: BASE_DIR / 'subdir'.
-BASE_DIR = Path(__file__).resolve().parent.parent
+BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
-# SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = config('DJANGO_SECRET_KEY')
-
-# SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
-
-ALLOWED_HOSTS = []
-
 
 INSTALLED_APPS = [
     'django.contrib.admin',
@@ -42,11 +37,12 @@ MIDDLEWARE = [
 ]
 
 ROOT_URLCONF = 'prex.urls'
+WSGI_APPLICATION = 'prex.wsgi.application'
 
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [],
+        'DIRS': [BASE_DIR / 'templates'],
         'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [
@@ -57,21 +53,6 @@ TEMPLATES = [
         },
     },
 ]
-
-WSGI_APPLICATION = 'prex.wsgi.application'
-
-
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.postgresql',
-        'NAME': config('DB_NAME'),
-        'USER': config('DB_USER'),
-        'PASSWORD': config('DB_PASSWORD'),
-        'HOST': config('DB_HOST'),
-        'PORT': config('DB_PORT'),
-    }
-}
-
 
 AUTH_PASSWORD_VALIDATORS = [
     {
@@ -89,30 +70,15 @@ AUTH_PASSWORD_VALIDATORS = [
 ]
 
 LANGUAGE_CODE = 'en-us'
-
 TIME_ZONE = 'Asia/Kolkata'
-
 USE_I18N = True
-
 USE_TZ = True
-
-
-STATIC_URL = '/static/'
-
-CORS_ALLOWED_ORIGINS = [
-    "http://localhost:5173",
-    "http://127.0.0.1:5173",
-]
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 REST_FRAMEWORK = {
-    'DEFAULT_PERMISSION_CLASSES': [
-        'rest_framework.permissions.IsAuthenticated',
-    ],
-    'DEFAULT_AUTHENTICATION_CLASSES': (
-        'rest_framework_simplejwt.authentication.JWTAuthentication',
-    ),
+    'DEFAULT_PERMISSION_CLASSES': ['rest_framework.permissions.IsAuthenticated'],
+    'DEFAULT_AUTHENTICATION_CLASSES': ('rest_framework_simplejwt.authentication.JWTAuthentication',),
 }
 
 SIMPLE_JWT = {
@@ -129,6 +95,7 @@ PASSWORD_HASHERS = [
     'django.contrib.auth.hashers.Argon2PasswordHasher',
 ]
 
+# Email — config values come from .env, so safe in base
 EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
 EMAIL_HOST = 'smtp.gmail.com'
 EMAIL_PORT = config('EMAIL_PORT', cast=int, default=587)
@@ -140,14 +107,17 @@ DEFAULT_FROM_EMAIL = config('DEFAULT_FROM_EMAIL', default=EMAIL_HOST_USER)
 SERVER_EMAIL = DEFAULT_FROM_EMAIL
 
 EMAIL_VERIFICATION_SALT = 'api.email_verification'
-EMAIL_VERIFICATION_MAX_AGE_SECONDS = config(
-    'EMAIL_VERIFICATION_MAX_AGE_SECONDS',
-    cast=int,
-    default=60 * 1 * 10,
-)
+EMAIL_VERIFICATION_MAX_AGE_SECONDS = config('EMAIL_VERIFICATION_MAX_AGE_SECONDS', cast=int, default=600)
 PASSWORD_RESET_SALT = 'api.password_reset'
-PASSWORD_RESET_MAX_AGE_SECONDS = config(
-    'PASSWORD_RESET_MAX_AGE_SECONDS',
-    cast=int,
-    default=60 * 1 * 10,
-)
+PASSWORD_RESET_MAX_AGE_SECONDS = config('PASSWORD_RESET_MAX_AGE_SECONDS', cast=int, default=600)
+
+DATABASES = {
+    'default': {
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': config('DB_NAME'),
+        'USER': config('DB_USER'),
+        'PASSWORD': config('DB_PASSWORD'),
+        'HOST': config('DB_HOST'),
+        'PORT': config('DB_PORT'),
+    }
+}

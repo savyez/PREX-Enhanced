@@ -34,6 +34,7 @@
 
 .price-card {
     min-height: 180px;
+    position: relative;
     background: #dbdde0;
     border: 1px solid #2b3139;
     border-radius: 12px;
@@ -107,23 +108,10 @@
     background: rgba(255,255,255,0.04);
 }
 
-.coin-card-wrapper {
-    position: relative;
-}
-
 .coin-rank {
     position: absolute;
     top: 16px;
     right: 16px;
-    color: #6b7280;
-    font-size: .75rem;
-    font-weight: 700;
-}
-
-.coin-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
 }
 
 .coin-price {
