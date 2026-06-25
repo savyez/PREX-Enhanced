@@ -3,6 +3,7 @@
     justify-content: space-between;
     align-items: flex-start;
     margin-bottom: 1rem;
+    gap: 1rem;
 }
 
 .coin-rank {
@@ -19,7 +20,7 @@
     margin: 0;
     font-size: 1.5rem;
     font-weight: 600;
-    color: azure;
+    color: #f8fafc;
 }
 
 .coin-header span {
@@ -35,14 +36,14 @@
 .coin-price strong {
     font-size: 2rem;
     font-weight: 700;
-    color: white;
+    color: #fff;
 }
 
 .price-change {
     margin: 0;
     font-size: 0.9rem;
     font-weight: 600;
-    color: azure;
+    color: #e5e7eb;
 }
 
 .price-change.price-up {

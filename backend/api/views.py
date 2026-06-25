@@ -130,6 +130,7 @@ def validate_authenticated_user_scope(request, user_id):
 @permission_classes([AllowAny])
 def coin_list(request):
     try:
+        print(f"Fetching Coin Data")
         response = requests.get(COINGECKO_API_URL, params={
             "vs_currency": "usd",
             "order_by": "market_cap_rank_asc",
@@ -138,6 +139,7 @@ def coin_list(request):
             "sparkline": True
         }, headers=HEADERS)
         response.raise_for_status()
+        print(f"Coin Data fetched successfully!")
 
     except requests.RequestException:
         return build_error_response(
@@ -253,7 +255,9 @@ def register_user(request):
                 reverse('verify_email', kwargs={'token': token})
             )
             try:
+                print(f"Sending Re-Verification mail to {existing_user.email}")
                 send_verification_email(existing_user.email, existing_user.username, verification_url)
+                print(f"Re-verification mail sent to {existing_user.email}")
             except smtplib.SMTPException as error:
                 return build_error_response(
                     f'Could not send verification email: {error}',
@@ -291,7 +295,9 @@ def register_user(request):
     )
 
     try:
+        print(f"Sending Verification mail to {email}")
         send_verification_email(email, username, verification_url)
+        print(f"Verification mail sent to {email}")
     except smtplib.SMTPException as error:
         # Delete the user if email sending fails
         User.objects.filter(email=email).delete()
@@ -311,11 +317,13 @@ def register_user(request):
 @permission_classes([AllowAny])
 def verify_email(request, token):
     try:
+        print(f"Retrieving data from the payload")
         payload = get_signed_payload(
             token,
             settings.EMAIL_VERIFICATION_SALT,
             settings.EMAIL_VERIFICATION_MAX_AGE_SECONDS,
         )
+        print(f"Payload retrieved successfully!")
     except ValueError as error:
         return build_error_response(str(error))
 
@@ -334,6 +342,7 @@ def verify_email(request, token):
     user.email_confirmed = True
     user.updated_at = timezone.now()
     user.save(update_fields=['email_confirmed', 'updated_at'])
+    print(f"You have been verified successfully, Congratulations!")
 
     return Response({'message': 'Email verified successfully. You can now login to your account.'})
 
@@ -421,7 +430,9 @@ def reset_password(request):
     )
 
     try:
+        print(f"Sending Password reset mail to {email}")
         send_password_reset_email(email, user.username, reset_url)
+        print(f"Password reset mail sent to {email}")
     except smtplib.SMTPException:
         return build_error_response('Failed to send password reset email.', status.HTTP_502_BAD_GATEWAY)
 

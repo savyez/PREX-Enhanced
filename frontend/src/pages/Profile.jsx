@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 import { getUser } from '../utils/auth.js';
 import { useEffect, useState } from 'react';
+import Button from '../components/Button.jsx';
 import { updateUserProfile } from '../utils/api.js';
 import '../styles/page_style/profile.css';
 
@@ -67,74 +68,111 @@ function Profile() {
 
     return (
         <main className="profile-page">
-            <div className="empty-profile">
-                <h2 className="empty-profile-title">Profile</h2>
+            <section className="profile-shell">
+                <header className="profile-hero">
+                    <div>
+                        <p className="profile-kicker">Account</p>
+                        <h1 className="profile-title">Profile</h1>
+                        <p className="profile-subtitle">
+                            Review your account details and update the fields that matter most.
+                        </p>
+                    </div>
+                    {user ? (
+                        <div className="profile-avatar" aria-hidden="true">
+                            {(user.username || 'U').slice(0, 1).toUpperCase()}
+                        </div>
+                    ) : null}
+                </header>
+
+                <div className="profile-card">
                 {user ? (
                     <>
-                        <p><b>User Id:</b> {user.id}</p>
-                        <div className="name-row">
-                            <p>
-                                <b>First Name:</b>{' '}
+                        <div className="profile-grid">
+                            <section className="profile-section profile-section-wide">
+                                <span className="profile-label">User ID</span>
+                                <p className="profile-value mono">{user.id}</p>
+                            </section>
+
+                            <section className="profile-section profile-section-wide">
+                                <span className="profile-label">Username</span>
                                 {updateInfo ? (
                                     <input
+                                        className="profile-input"
                                         type="text"
-                                        name="first_name"
-                                        value={formData.first_name || ''}
+                                        name="username"
+                                        value={formData.username || ''}
                                         onChange={handleChange}
                                     />
                                 ) : (
-                                    user.first_name
+                                    <p className="profile-value">{user.username}</p>
                                 )}
-                            </p>
-                            <p>
-                                <b>Last Name:</b>{' '}
-                                {updateInfo ? (
-                                    <input
-                                        type="text"
-                                        name="last_name"
-                                        value={formData.last_name || ''}
-                                        onChange={handleChange}
-                                    />
-                                ) : (
-                                    user.last_name
-                                )}
-                            </p>
+                            </section>
+
+                            <div className="profile-row">
+                                <section className="profile-section">
+                                    <span className="profile-label">First Name</span>
+                                    {updateInfo ? (
+                                        <input
+                                            className="profile-input"
+                                            type="text"
+                                            name="first_name"
+                                            value={formData.first_name || ''}
+                                            onChange={handleChange}
+                                        />
+                                    ) : (
+                                        <p className="profile-value">{user.first_name || 'Not provided'}</p>
+                                    )}
+                                </section>
+
+                                <section className="profile-section">
+                                    <span className="profile-label">Last Name</span>
+                                    {updateInfo ? (
+                                        <input
+                                            className="profile-input"
+                                            type="text"
+                                            name="last_name"
+                                            value={formData.last_name || ''}
+                                            onChange={handleChange}
+                                        />
+                                    ) : (
+                                        <p className="profile-value">{user.last_name || 'Not provided'}</p>
+                                    )}
+                                </section>
+                            </div>
+
+                            <section className="profile-section profile-section-wide">
+                                <span className="profile-label">Email</span>
+                                <p className="profile-value">{user.email}</p>
+                            </section>
+
+                            <section className="profile-section profile-section-wide">
+                                <span className="profile-label">Date of Birth</span>
+                                <p className="profile-value">{user.dob || 'Not provided'}</p>
+                            </section>
                         </div>
-                        <p>
-                            <b>Username:</b>{' '}
-                            {updateInfo ? (
-                                <input
-                                    type="text"
-                                    name="username"
-                                    value={formData.username || ''}
-                                    onChange={handleChange}
-                                />
-                            ) : (
-                                user.username
-                            )}
-                        </p>
-                        <p>
-                            <b>Email:</b> {user.email}
-                        </p>
-                        <p>
-                            <b>Date of Birth:</b>{' '}
-                            {user.dob}
-                        </p>
+
+                        <div className="profile-actions">
+                            <button
+                                className="update-info-button"
+                                onClick={handleUpdateInfo}
+                            >
+                                {buttonText}
+                            </button>
+                            <Button
+                                className="profile-settings-button"
+                                href="/settings"
+                                name="Go to Settings"
+                            />
+                        </div>
                     </>
                 ) : (
                     <>
-                        <p>You need to login to see your profile.</p>
-                        <Link className="button explore-prices" to="/login">Login</Link>
+                        <p className="empty-profile-copy">You need to login to see your profile.</p>
+                        <Link className="button explore-prices profile-login-button" to="/login">Login</Link>
                     </>
                 )}
-                
-                <button 
-                    className='update-info-button' 
-                    onClick={handleUpdateInfo}
-                >
-                    {buttonText}
-                </button>
-            </div>
+                </div>
+            </section>
         </main>
     );
 }

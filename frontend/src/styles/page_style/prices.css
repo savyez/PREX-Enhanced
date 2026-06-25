@@ -52,13 +52,14 @@
 
 .price-card h3 {
     font-size: 1.2rem;
-    margin-bottom: 0.25rem;
+    margin: 0 0 0.25rem;
 }
 
 .price-card span {
-    color: #6b7280;
+    color: #9ca3af;
     font-size: 0.8rem;
     text-transform: uppercase;
+    letter-spacing: 0.12em;
 }
 
 .price-card strong {

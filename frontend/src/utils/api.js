@@ -210,7 +210,16 @@ const updateUserProfile = (userId, profileData) =>
   });
 
 
+const getCurrentUser = () => apiFetch('/current-user/');
+
+
 const searchCoins = (coinId) => apiFetch(`/coins/search/${encodeURIComponent(coinId)}/`);
+
+const requestPasswordReset = (email) =>
+  apiFetch('/reset-password/', {
+    method: 'POST',
+    body: JSON.stringify({ email }),
+  });
 
 
 export { 
@@ -226,5 +235,7 @@ export {
   createWatchlist,
   deleteWatchlist, 
   updateUserProfile,
+  getCurrentUser,
   searchCoins,
+  requestPasswordReset,
 };
