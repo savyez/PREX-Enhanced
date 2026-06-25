@@ -1,7 +1,13 @@
 .prices-page {
     flex: 1;
     padding: 2rem 4rem;
-    width: 85%;
+    width: 100%;
+    box-sizing: border-box;
+    background:
+        radial-gradient(circle at top left, rgba(255, 255, 255, 0.05), transparent 24%),
+        radial-gradient(circle at top right, rgba(99, 102, 241, 0.12), transparent 28%),
+        radial-gradient(circle at bottom center, rgba(255, 255, 255, 0.03), transparent 34%),
+        linear-gradient(180deg, #19191d 0%, #232329 52%, #1b1b1f 100%);
 }
 
 .prices-header {
@@ -28,15 +34,16 @@
 .prices-grid {
     display: grid;
     grid-template-columns:
-        repeat(auto-fill, minmax(300px, 1fr));
+        repeat(auto-fit, minmax(280px, 1fr));
     gap: 1.25rem;
+    width: 100%;
 }
 
 .price-card {
     min-height: 180px;
     position: relative;
-    background: #dbdde0;
-    border: 1px solid #2b3139;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.09);
     border-radius: 12px;
     padding: 1.25rem;
     transition: all 0.2s ease;
@@ -53,6 +60,7 @@
 .price-card h3 {
     font-size: 1.2rem;
     margin: 0 0 0.25rem;
+    color: #fff;
 }
 
 .price-card span {
@@ -71,6 +79,7 @@
 .price-card p {
     margin: 0;
     font-weight: 700;
+    color: #e5e7eb;
 }
 
 .price-up {
@@ -126,11 +135,11 @@
 
 .top-header {
     margin-top: auto;
-    color: rgba(255, 255, 255, 0.774)
+    color: rgba(255, 255, 255, 0.92)
 }
 
 @media (min-width: 1600px) {
     .prices-page {
-        padding: 2rem 6rem;
+        padding: 2rem 4rem;
     }
 }

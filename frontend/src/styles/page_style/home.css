@@ -4,19 +4,25 @@
     align-items: center;
     justify-content: center;
     padding: 4rem 2rem;
-    color: var(--color-text-inverse);
+    color: #f8fafc;
     text-align: center;
+    background:
+        radial-gradient(circle at top left, rgba(255, 255, 255, 0.05), transparent 24%),
+        radial-gradient(circle at top right, rgba(99, 102, 241, 0.12), transparent 28%),
+        radial-gradient(circle at bottom center, rgba(255, 255, 255, 0.03), transparent 34%),
+        linear-gradient(180deg, #19191d 0%, #232329 52%, #1b1b1f 100%);
 }
 
 .home-hero h2 {
     margin: 0 0 1rem;
     font-size: 2.5rem;
+    color: #ffffff;
 }
 
 .home-hero p {
     max-width: 42rem;
     margin: 0;
-    color: var(--color-text-light);
+    color: #d1d5db;
     font-size: 1.1rem;
     line-height: 1.6;
 }

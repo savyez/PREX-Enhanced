@@ -2,6 +2,11 @@
     flex: 1;
     padding: 3rem 2rem;
     color: var(--color-text-inverse);
+    background:
+        radial-gradient(circle at top left, rgba(255, 255, 255, 0.05), transparent 24%),
+        radial-gradient(circle at top right, rgba(99, 102, 241, 0.12), transparent 28%),
+        radial-gradient(circle at bottom center, rgba(255, 255, 255, 0.03), transparent 34%),
+        linear-gradient(180deg, #19191d 0%, #232329 52%, #1b1b1f 100%);
 }
 
 .watchlist-page > h2,
