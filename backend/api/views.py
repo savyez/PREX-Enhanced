@@ -22,6 +22,7 @@ from .helpers import get_signed_payload, normalize_email_value, normalize_userna
 
 # Constants for CoinGecko API access
 COINGECKO_API_URL = config('COINGECKO_API_URL')
+COINGECKO_CHART_URL = config('COINGECKO_CHART_URL')
 HEADERS = {
     "x-cg-demo-api-key": config('COINGECKO_API_KEY')
 }
@@ -179,6 +180,39 @@ def coin_list(request):
         'success': True,
         'coins': serializer.data
     })
+
+# view to get the chart data with time from the CoinGecko API
+@api_view(['GET'])
+def get_chart_data(request, coin_id=None):
+    try: 
+        print("fetching chart data from CoinGecko API.")
+        coin_id = coin_id or request.query_params.get('coin_id')
+        response = requests.get(f"{COINGECKO_CHART_URL}{coin_id}/market_chart", params={
+            "vs_currency": "usd",
+            "days": 7,
+            "interval": "hourly",
+            "precision": 4,
+            "sparkline": True
+        }, headers=HEADERS)
+        response.raise_for_status()
+        data = response.json()
+        prices = data.get('prices', [])
+        if not prices:
+            return build_error_response(
+                'No chart data available for the specified coin.',
+                status.HTTP_404_NOT_FOUND
+            )
+        # Convert timestamps to readable format
+        for i in range(len(prices)):
+            prices[i][0] = timezone.datetime.fromtimestamp(prices[i][0] / 1000).strftime('%Y-%m-%d %H:%M:%S')
+        data['prices'] = prices
+        print(f"chart data fetched successfully! {len(prices)} data points available.")
+        return Response(prices)
+    except requests.RequestException:
+        return build_error_response(
+            'Unable to fetch live chart data right now. Please try again later.',
+            status.HTTP_502_BAD_GATEWAY
+        )
 
 
 #view to update user info through profile page.

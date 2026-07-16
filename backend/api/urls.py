@@ -6,6 +6,7 @@ urlpatterns = [
     path('', views.home, name='home'),
     path('coins/', views.coin_list, name='coin_list'),
     path('coins/search/<str:coin_id>/', views.search_coins, name='search_coins'),
+    path('coins/<str:coin_id>/chart/', views.get_chart_data, name='coin_chart'),
 
     # User authentication and management endpoints
     path('register/', views.register_user, name='register_user'),
