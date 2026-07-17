@@ -35,10 +35,57 @@
     padding: 1rem 1.25rem;
 }
 
+.search-result-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(320px, 1.25fr);
+    gap: 1.25rem;
+    align-items: stretch;
+}
+
+.search-result-details {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+}
+
 .search-result h2 {
     margin: 0;
     color: var(--color-text-inverse);
     font-size: 1.25rem;
+}
+
+.search-result-chart {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    min-height: 240px;
+    padding: 0.75rem;
+    border-radius: 0.75rem;
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.chart-heading {
+    color: var(--color-text-light);
+    font-size: 0.9rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+}
+
+.coin-sparkline-placeholder {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    min-height: 220px;
+    border-radius: 0.75rem;
+    color: var(--color-text-light);
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px dashed rgba(255, 255, 255, 0.1);
+}
+
+.search-result-chart .recharts-wrapper {
+    overflow: visible;
 }
 
 .search-result .price-up {
@@ -51,4 +98,14 @@
 
 .search-result .price-neutral {
     color: var(--color-text-light);
+}
+
+@media (max-width: 900px) {
+    .search-result-layout {
+        grid-template-columns: 1fr;
+    }
+
+    .search-result-chart {
+        min-height: 220px;
+    }
 }

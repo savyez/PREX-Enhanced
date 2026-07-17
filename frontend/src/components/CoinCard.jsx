@@ -1,4 +1,5 @@
 import Card from './Card.jsx';
+import CoinChart from './CoinChart.jsx';
 import '../styles/component_style/coinCard.css';
 
 function CoinCard({ coin, rank, onWatchlistClick, onCardClick, }) {
@@ -31,6 +32,11 @@ function CoinCard({ coin, rank, onWatchlistClick, onCardClick, }) {
             <div className="coin-price">
                 <strong>${price}</strong>
             </div>
+
+            <CoinChart
+                coin={coin}
+                height={84}
+            />
 
             <button
                 className="watchlist-button"

@@ -1,6 +1,7 @@
 import '../styles/page_style/prices.css';
 import { useEffect, useState } from 'react';
 import CoinCard from '../components/CoinCard.jsx';
+import Pagination from '../components/Pagination.jsx';
 import WatchlistSelector from '../components/WatchlistSelector.jsx';
 import { getCoins } from '../utils/api.js';
 import { useAuth } from '../context/AuthContext';
@@ -13,33 +14,43 @@ function Prices() {
     const [error, setError] = useState(null);
     const [selectedCoin, setSelectedCoin] = useState(null);
     const [showWatchlistSelector, setShowWatchlistSelector] = useState(false);
+    const [currentPage, setCurrentPage] = useState(1);
+    const [totalPages, setTotalPages] = useState(0);
+    const coinsPerPage = 25;
 
     const navigate = useNavigate();
 
     useEffect(() => {
         const fetchCoins = async () => {
             try {
-                const data = await getCoins();
-                const coinsData = data.coins || data;
-                const topCoinsData = coinsData.filter(coin => coin.market_cap_rank !== null && coin.market_cap_rank <= 100);
-                topCoinsData.sort((a, b) => a.market_cap_rank - b.market_cap_rank);
+                setIsLoading(true);
+                setError(null);
+                const data = await getCoins(currentPage, coinsPerPage);
+                const fetchedCoins = data.results || data.coins || [];
 
-                setCoins(topCoinsData);
+                setCoins(fetchedCoins);
+                setTotalPages(data.total_pages || 0);
+                if (data.page && data.page !== currentPage) {
+                    setCurrentPage(data.page);
+                }
             } catch (err) {
                 setError(err.message);
+                setCoins([]);
+                setTotalPages(0);
             } finally {
                 setIsLoading(false);
             }
         };
 
         fetchCoins();
-    }, []);
+    }, [currentPage]);
 
     const handleWatchlistClick = (coin) => {
         if (!authenticated) {
             alert('Please log in to add coins to your watchlist');
             return;
         }
+
         setSelectedCoin(coin);
         setShowWatchlistSelector(true);
     };
@@ -52,7 +63,6 @@ function Prices() {
     const handleWatchlistSelectorSuccess = () => {
         setShowWatchlistSelector(false);
         setSelectedCoin(null);
-        // Optionally show a success message
         alert(`${selectedCoin.coin_name} added to watchlist!`);
     };
 
@@ -63,20 +73,33 @@ function Prices() {
     return (
         <main className="prices-page">
             <section className="prices-header">
-                <h1 className='top-header'>Top Cryptocurrencies</h1>
+                <h1 className="top-header">Top Cryptocurrencies</h1>
             </section>
-            {isLoading && <p>Loading prices...</p>}
-            {error && <p className="price-down">{error}</p>}
-            <section className="prices-grid" aria-label="Coin prices">
-                {coins.slice(0, 25).map((coin) => (
-                    <CoinCard
-                        key={coin.ticker}
-                        coin={coin}
-                        rank={coin.market_cap_rank}
-                        onWatchlistClick={() => handleWatchlistClick(coin)}
-                        onCardClick = {() => handleCardClick(coin.ticker)}
+
+            <section className="prices-content">
+                {isLoading && <p>Loading prices...</p>}
+                {error && <p className="price-down">{error}</p>}
+
+                <section className="prices-grid" aria-label="Coin prices">
+                    {coins.map((coin) => (
+                        <CoinCard
+                            key={coin.ticker}
+                            coin={coin}
+                            rank={coin.market_cap_rank}
+                            onWatchlistClick={() => handleWatchlistClick(coin)}
+                            onCardClick={() => handleCardClick(coin.ticker)}
+                        />
+                    ))}
+                </section>
+
+                {!isLoading && !error && totalPages > 1 && (
+                    <Pagination
+                        currentPage={currentPage}
+                        totalPages={totalPages}
+                        onPageChange={setCurrentPage}
+                        ariaLabel="Prices pagination"
                     />
-                ))}
+                )}
             </section>
 
             {showWatchlistSelector && selectedCoin && (

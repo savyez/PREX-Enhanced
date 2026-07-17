@@ -1,6 +1,8 @@
 import smtplib
 import requests
 from decouple import config
+from django.core.cache import cache
+from django.db.models import Q
 from .models import Coin, User, Watchlist, WatchlistItem
 from .serializers import UserSerializer, CoinSerializer, WatchlistSerializer, WatchlistItemDetailSerializer
 from django.core import signing
@@ -18,11 +20,13 @@ from rest_framework_simplejwt.exceptions import TokenError
 from django.contrib.auth.password_validation import validate_password
 from django.core.mail import EmailMultiAlternatives
 from django.template.loader import render_to_string
+from .paginations import get_pagination_params, build_paginated_response
 from .helpers import get_signed_payload, normalize_email_value, normalize_username_value
 
 # Constants for CoinGecko API access
 COINGECKO_API_URL = config('COINGECKO_API_URL')
 COINGECKO_CHART_URL = config('COINGECKO_CHART_URL')
+COINGECKO_SEARCH_URL = 'https://api.coingecko.com/api/v3/search'
 HEADERS = {
     "x-cg-demo-api-key": config('COINGECKO_API_KEY')
 }
@@ -126,6 +130,40 @@ def validate_authenticated_user_scope(request, user_id):
     return None
 
 
+def resolve_coin_gecko_id(coin_id):
+    normalized_coin_id = str(coin_id).strip()
+    if not normalized_coin_id:
+        return None
+
+    local_coin = Coin.objects.filter(ticker__iexact=normalized_coin_id).first()
+    if local_coin:
+        normalized_coin_id = local_coin.coin_name.strip()
+
+    try:
+        response = requests.get(COINGECKO_SEARCH_URL, params={'query': normalized_coin_id}, headers=HEADERS)
+        response.raise_for_status()
+        payload = response.json()
+    except (requests.RequestException, ValueError):
+        return None
+
+    coins = payload.get('coins', [])
+    if not coins:
+        return None
+
+    search_key = normalized_coin_id.upper()
+    for candidate in coins:
+        if candidate.get('id', '').strip().lower() == normalized_coin_id.lower():
+            return candidate.get('id')
+        if candidate.get('symbol', '').upper() == search_key:
+            return candidate.get('id')
+
+    for candidate in coins:
+        if candidate.get('name', '').strip().lower() == normalized_coin_id.lower():
+            return candidate.get('id')
+
+    return coins[0].get('id')
+
+
 # View to fetch the latest coin data from the CoinGecko API and update the database accordingly.
 @api_view(['GET'])
 @permission_classes([AllowAny])
@@ -174,12 +212,12 @@ def coin_list(request):
             'Coin data is missing expected fields.',
             status.HTTP_502_BAD_GATEWAY
         )
-    coins = Coin.objects.all()
-    serializer = CoinSerializer(coins, many=True)
-    return Response({
-        'success': True,
-        'coins': serializer.data
-    })
+    Coin.objects.filter(market_cap_rank__isnull=True).delete()  # Remove coins without a market cap rank
+    coins = Coin.objects.all().order_by('market_cap_rank', 'ticker')
+
+    page, page_size = get_pagination_params(request)
+    return build_paginated_response(CoinSerializer, coins, page, page_size)
+
 
 # view to get the chart data with time from the CoinGecko API
 @api_view(['GET'])
@@ -187,9 +225,26 @@ def get_chart_data(request, coin_id=None):
     try: 
         print("fetching chart data from CoinGecko API.")
         coin_id = coin_id or request.query_params.get('coin_id')
-        response = requests.get(f"{COINGECKO_CHART_URL}{coin_id}/market_chart", params={
+        try:
+            days = int(request.query_params.get('days', 7))
+        except (TypeError, ValueError):
+            days = 7
+
+        resolved_coin_id = resolve_coin_gecko_id(coin_id)
+        if not resolved_coin_id:
+            return build_error_response(
+                'Unable to resolve the requested coin for chart data.',
+                status.HTTP_404_NOT_FOUND
+            )
+
+        cache_key = f"coin_chart:{resolved_coin_id}:{days}"
+        cached_chart = cache.get(cache_key)
+        if cached_chart:
+            return Response(cached_chart)
+
+        response = requests.get(f"{COINGECKO_CHART_URL}{resolved_coin_id}/market_chart", params={
             "vs_currency": "usd",
-            "days": 7,
+            "days": days,
             "interval": "hourly",
             "precision": 4,
             "sparkline": True
@@ -202,12 +257,16 @@ def get_chart_data(request, coin_id=None):
                 'No chart data available for the specified coin.',
                 status.HTTP_404_NOT_FOUND
             )
-        # Convert timestamps to readable format
-        for i in range(len(prices)):
-            prices[i][0] = timezone.datetime.fromtimestamp(prices[i][0] / 1000).strftime('%Y-%m-%d %H:%M:%S')
-        data['prices'] = prices
-        print(f"chart data fetched successfully! {len(prices)} data points available.")
-        return Response(prices)
+
+        print(f"Chart data fetched successfully for coin_id: {resolved_coin_id}, {len(prices)} data points retrieved.")
+
+        payload = {
+            'success': True,
+            'coin_id': resolved_coin_id,
+            'chart_data': [{'timestamp': ts, 'price': price} for ts, price in prices]
+        }
+        cache.set(cache_key, payload, timeout=300)
+        return Response(payload)
     except requests.RequestException:
         return build_error_response(
             'Unable to fetch live chart data right now. Please try again later.',
@@ -758,23 +817,28 @@ def search_coins(request, coin_id):
     query = coin_id.strip()
 
     coins = Coin.objects.filter(
-        ticker=query.upper()
-    ) | Coin.objects.filter(
-        coin_name=query
-    )
+        Q(ticker=query.upper()) | Q(coin_name__iexact=query)
+    ).distinct().order_by('market_cap_rank', 'ticker')
 
     if not coins.exists():
         return Response({
             'success': True,
             'message': 'No coins found matching the search query.',
-            'coins': []
+            'page': 1,
+            'page_size': 25,
+            'total_count': 0,
+            'total_pages': 0,
+            'results': []
         })
 
-    serializer = CoinSerializer(coins, many=True)
-    return Response({
-        'success': True,
-        'coins': serializer.data
-    })
+    page, page_size = get_pagination_params(request)
+    return build_paginated_response(
+        CoinSerializer,
+        coins,
+        page,
+        page_size,
+        extra_data={'message': 'Coins found matching the search query.'}
+    )
 
 
 @api_view(['GET'])

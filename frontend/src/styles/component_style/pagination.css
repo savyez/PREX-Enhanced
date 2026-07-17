@@ -1,0 +1,95 @@
+.pagination {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.55rem;
+    margin: 1.5rem auto 0;
+    padding: 0.5rem 0.7rem;
+    width: fit-content;
+    max-width: 100%;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(12px);
+    box-shadow: 0 10px 28px rgba(0, 0, 0, 0.16);
+}
+
+.pagination-pages {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.45rem;
+}
+
+.pagination-arrow,
+.pagination-page {
+    height: 2.4rem;
+    min-width: 2.4rem;
+    padding: 0 0.8rem;
+    border-radius: 0.8rem;
+    border: 1px solid transparent;
+    background: rgba(255, 255, 255, 0.05);
+    color: #cbd5e1;
+    font-weight: 700;
+    line-height: 1;
+    transition: transform 0.2s ease, background-color 0.2s ease, border-color 0.2s ease, opacity 0.2s ease;
+}
+
+.pagination-arrow {
+    min-width: 2.55rem;
+    padding: 0;
+    font-size: 1.15rem;
+}
+
+.pagination-page {
+    min-width: 2.55rem;
+    color: #aeb9c9;
+}
+
+.pagination-arrow:hover:not(:disabled),
+.pagination-page:hover:not(:disabled) {
+    transform: translateY(-1px);
+    background: rgba(96, 165, 250, 0.12);
+    border-color: rgba(96, 165, 250, 0.22);
+    color: #eff6ff;
+}
+
+.pagination-page.is-active {
+    background: linear-gradient(180deg, #2f80ed 0%, #1f6fd6 100%);
+    border-color: rgba(96, 165, 250, 0.55);
+    color: #ffffff;
+    box-shadow: 0 8px 18px rgba(31, 111, 214, 0.28);
+}
+
+.pagination-arrow:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+    transform: none;
+}
+
+.pagination-ellipsis {
+    min-width: 1rem;
+    text-align: center;
+    color: #94a3b8;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+}
+
+@media (max-width: 640px) {
+    .pagination {
+        width: fit-content;
+        justify-content: center;
+        gap: 0.4rem;
+        flex-wrap: wrap;
+    }
+
+    .pagination-pages {
+        gap: 0.35rem;
+    }
+
+    .pagination-arrow,
+    .pagination-page {
+        height: 2.2rem;
+        min-width: 2.2rem;
+    }
+}

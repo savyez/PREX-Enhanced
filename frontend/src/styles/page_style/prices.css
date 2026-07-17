@@ -1,6 +1,6 @@
 .prices-page {
     flex: 1;
-    padding: 2rem 4rem;
+    padding: 2rem 3rem;
     width: 100%;
     box-sizing: border-box;
     background:
@@ -33,10 +33,22 @@
 
 .prices-grid {
     display: grid;
-    grid-template-columns:
-        repeat(auto-fit, minmax(280px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
     gap: 1.25rem;
     width: 100%;
+    align-items: stretch;
+}
+
+.prices-content {
+    display: flex;
+    flex-direction: column;
+    min-height: 58vh;
+    padding-bottom: 2.25rem;
+}
+
+.prices-content .pagination {
+    margin-top: 15px;
+    align-self: center;
 }
 
 .price-card {
@@ -136,6 +148,16 @@
 .top-header {
     margin-top: auto;
     color: rgba(255, 255, 255, 0.92)
+}
+
+@media (max-width: 640px) {
+    .prices-page {
+        padding: 1.25rem;
+    }
+
+    .prices-header h1 {
+        font-size: 2.1rem;
+    }
 }
 
 @media (min-width: 1600px) {

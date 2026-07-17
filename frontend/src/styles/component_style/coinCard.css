@@ -1,8 +1,13 @@
+.price-card {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
 .coin-header {
     display: flex;
     justify-content: space-between;
     align-items: flex-start;
-    margin-bottom: 1rem;
     gap: 1rem;
 }
 
@@ -29,14 +34,42 @@
 }
 
 .coin-price {
-    margin-top: .5rem;
-    margin-bottom: 1rem;
+    margin: 0;
 }
 
 .coin-price strong {
     font-size: 2rem;
     font-weight: 700;
     color: #fff;
+}
+
+.coin-sparkline {
+    width: 100%;
+    min-height: 84px;
+    margin: 0.25rem 0 0.75rem;
+    border-radius: 12px;
+    overflow: hidden;
+}
+
+.coin-sparkline-placeholder {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    min-height: 84px;
+    border-radius: 10px;
+    color: #94a3b8;
+    font-size: 0.8rem;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px dashed rgba(255, 255, 255, 0.09);
+}
+
+.coin-sparkline .recharts-responsive-container {
+    min-height: 84px;
+}
+
+.coin-sparkline svg {
+    display: block;
 }
 
 .price-change {
@@ -56,4 +89,8 @@
 
 .price-change.price-neutral {
     color: #9ea4ac;
+}
+
+.price-card .watchlist-button {
+    margin-top: auto;
 }

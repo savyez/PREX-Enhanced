@@ -149,7 +149,8 @@ const logout = () =>
 
 
 // Fetch list of coins from the API
-const getCoins = () => apiFetch('/coins/');
+const getCoins = (page = 1, pageSize = 25) =>
+  apiFetch(`/coins/?page=${page}&page_size=${pageSize}`);
 
 
 // Fetch watchlists for a specific user
@@ -213,13 +214,16 @@ const updateUserProfile = (userId, profileData) =>
 const getCurrentUser = () => apiFetch('/current-user/');
 
 
-const searchCoins = (coinId) => apiFetch(`/coins/search/${encodeURIComponent(coinId)}/`);
+const searchCoins = (coinId, page = 1, pageSize = 10) =>
+  apiFetch(`/coins/search/${encodeURIComponent(coinId)}/?page=${page}&page_size=${pageSize}`);
 
 const requestPasswordReset = (email) =>
   apiFetch('/reset-password/', {
     method: 'POST',
     body: JSON.stringify({ email }),
   });
+
+const chart_data = (coinId, days) => apiFetch(`/coins/${encodeURIComponent(coinId)}/chart/?days=${days}`);
 
 
 export { 
@@ -238,4 +242,5 @@ export {
   getCurrentUser,
   searchCoins,
   requestPasswordReset,
+  chart_data
 };
