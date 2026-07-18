@@ -1,20 +1,14 @@
 import { Link } from 'react-router-dom';
-import { getUser } from '../utils/auth.js';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import Button from '../components/Button.jsx';
 import { updateUserProfile } from '../utils/api.js';
+import { useAuth } from '../context/AuthContext';
 import '../styles/page_style/profile.css';
 
 function Profile() {
+    const { user, updateUser } = useAuth();
     const [updateInfo, setUpdateInfo] = useState(false);
-    const [user, setUser] = useState(() => getUser());
-    const [formData, setFormData] = useState(() => getUser() || {});
-
-    useEffect(() => {
-        const currentUser = getUser();
-        setUser(currentUser);
-        setFormData(currentUser || {});
-    }, []);
+    const [formData, setFormData] = useState({});
 
     const handleChange = (event) => {
         const { name, value } = event.target;
@@ -52,8 +46,7 @@ function Profile() {
             updateUserProfile(user.id, payload)
                 .then((response) => {
                     const updatedUser = response.user;
-                    localStorage.setItem('user', JSON.stringify(updatedUser));
-                    setUser(updatedUser);
+                    updateUser(updatedUser);
                     setFormData(updatedUser);
                     setUpdateInfo(false);
                 })

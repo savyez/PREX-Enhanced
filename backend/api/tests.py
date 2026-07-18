@@ -139,6 +139,36 @@ class ApiIntegrationTests(APITestCase):
         self.assertIn('refresh_token', response.data)
         self.assertEqual(response.data['user']['email'], 'fay@example.com')
 
+    def test_logout_requires_ownership_of_refresh_token(self):
+        user1 = self.create_user('fayone', 'fayone@example.com', 'Password123!', email_confirmed=True)
+        user2 = self.create_user('faytwo', 'faytwo@example.com', 'Password123!', email_confirmed=True)
+
+        user1_tokens = self.authenticate_user('fayone', 'fayone@example.com', 'Password123!')
+        user2_tokens = self.authenticate_user('faytwo', 'faytwo@example.com', 'Password123!')
+
+        self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {user1_tokens['access_token']}")
+        forbidden_response = self.client.post(
+            reverse('logout_user'),
+            data={'refresh_token': user2_tokens['refresh_token']},
+            format='json'
+        )
+        self.assertEqual(forbidden_response.status_code, 403)
+
+        success_response = self.client.post(
+            reverse('logout_user'),
+            data={'refresh_token': user1_tokens['refresh_token']},
+            format='json'
+        )
+        self.assertEqual(success_response.status_code, 200)
+
+        self.client.credentials()
+        anonymous_response = self.client.post(
+            reverse('logout_user'),
+            data={'refresh_token': user2_tokens['refresh_token']},
+            format='json'
+        )
+        self.assertEqual(anonymous_response.status_code, 401)
+
     def test_update_user_updates_authenticated_users_profile(self):
         user = self.create_user('gail', 'gail@example.com', 'Password123!', email_confirmed=True)
         self.authenticate_user('gail', 'gail@example.com', 'Password123!')

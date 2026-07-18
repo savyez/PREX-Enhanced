@@ -41,7 +41,11 @@ export function WatchlistProvider({ children }) {
               nextMembershipMap[ticker] = [];
             }
 
-            nextMembershipMap[ticker].push({ watchlist, item });
+            nextMembershipMap[ticker].push({
+              item_id: item.id,
+              watchlist_id: watchlist.id,
+              watchlist_name: watchlist.name,
+            });
           });
         })
       );

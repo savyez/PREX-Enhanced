@@ -18,7 +18,7 @@ const getUser = () => {
   try {
     return JSON.parse(user);
 
-  } catch (error) {
+  } catch {
     clearAuth();
     return null;
   }

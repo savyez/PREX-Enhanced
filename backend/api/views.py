@@ -617,7 +617,7 @@ def reset_password_confirm(request, token):
 # View to handle user logout by blacklisting the refresh token, 
 # ensuring that it cannot be used to generate new access tokens.
 @api_view(['POST'])
-@permission_classes([AllowAny])
+@permission_classes([IsAuthenticated])
 def user_logout(request):
     refresh_token = request.data.get('refresh_token')
 
@@ -626,6 +626,13 @@ def user_logout(request):
 
     try:
         token = RefreshToken(refresh_token)
+
+        if str(token['user_id']) != str(request.user.id):
+            return build_error_response(
+                'You do not have permission to revoke this session.',
+                status.HTTP_403_FORBIDDEN
+            )
+
         token.blacklist()
 
         return Response({

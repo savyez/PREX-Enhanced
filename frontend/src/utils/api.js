@@ -1,14 +1,18 @@
-import { clearAuth } from './auth';
-
 let refreshPromise = null;
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000/api/v1';
 
 
-// Redirect to login page and clear authentication data
-const redirectToLogin = () => {
-  clearAuth();
-  window.location.replace('/login');
+export class AuthenticationError extends Error {
+  constructor(message = 'Your session has expired. Please sign in again.') {
+    super(message);
+    this.name = 'AuthenticationError';
+  }
+}
+
+// React owns session state and navigation; the API layer only reports an expired session.
+const notifyAuthenticationFailure = () => {
+  window.dispatchEvent(new Event('authfailure'));
 };
 
 // Build full API URL from path
@@ -27,7 +31,6 @@ const getAuthHeaders = () => {
 const apiFetch = async (path, options = {}, retry = true) => {
   const {
     auth = true,
-    redirectOnAuthFailure = false,
     headers: customHeaders = {},
     ...fetchOptions
   } = options;
@@ -54,7 +57,7 @@ const apiFetch = async (path, options = {}, retry = true) => {
   if (
     retry &&
     auth &&
-    localStorage.getItem('access_token') &&
+    localStorage.getItem('refresh_token') &&
     response.status === 401 &&
     data?.code === 'token_not_valid'
   ) {
@@ -62,20 +65,15 @@ const apiFetch = async (path, options = {}, retry = true) => {
       await refreshAccessToken();
       return apiFetch(path, options, false);
     } catch (error) {
-      if (redirectOnAuthFailure) {
-        redirectToLogin();
-      }
+      notifyAuthenticationFailure();
       throw error;
     }
   }
 
   if (!response.ok) {
-    if (
-      auth &&
-      redirectOnAuthFailure &&
-      response.status === 401
-    ) {
-      redirectToLogin();
+    if (auth && response.status === 401) {
+      notifyAuthenticationFailure();
+      throw new AuthenticationError();
     }
 
     const message = data?.error || data?.detail || data?.message || 'Request failed';
@@ -88,13 +86,11 @@ const apiFetch = async (path, options = {}, retry = true) => {
 const apiNoAuth = async (path, options = {}) => apiFetch(path, {
   ...options,
   auth: false,
-  redirectOnAuthFailure: false,
 });
 
 const apiAuth = async (path, options = {}) => apiFetch(path, {
   ...options,
   auth: true,
-  redirectOnAuthFailure: true,
 });
 
 // Refresh access token using the refresh token
@@ -108,8 +104,7 @@ const refreshAccessToken = async () => {
       const refresh = localStorage.getItem('refresh_token');
 
       if (!refresh) {
-        clearAuth();
-        throw new Error('No refresh token');
+        throw new AuthenticationError('No refresh token');
       }
 
       const response = await fetch(buildUrl('/token/refresh/'), {
@@ -121,15 +116,13 @@ const refreshAccessToken = async () => {
       });
 
       if (!response.ok) {
-        clearAuth();
-        throw new Error('Session expired');
+        throw new AuthenticationError();
       }
 
       const data = await response.json();
 
       if (!data.access) {
-        clearAuth();
-        throw new Error('Invalid refresh response');
+        throw new AuthenticationError('Invalid refresh response');
       }
 
       localStorage.setItem('access_token', data.access);
@@ -167,11 +160,11 @@ const register = (userData) => (
 
 
 // Note: The logout function is currently unused, but it's included here for completeness and future use.
-const logout = () =>
-  apiNoAuth('/logout/', {
+const logout = (refreshToken = localStorage.getItem('refresh_token')) =>
+  apiAuth('/logout/', {
     method: 'POST',
     body: JSON.stringify({
-      refresh_token: localStorage.getItem('refresh_token'),
+      refresh_token: refreshToken,
     }),
   });
 
