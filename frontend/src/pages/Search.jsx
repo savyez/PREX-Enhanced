@@ -2,10 +2,11 @@ import SearchBar from '../components/SearchBar';
 import Pagination from '../components/Pagination.jsx';
 import WatchlistSelector from '../components/WatchlistSelector.jsx';
 import ConfirmationModal from '../modals/ConfirmationModal.jsx';
-import { searchCoins, getWatchlists, getWatchlistItems, removeCoinFromWatchlist } from '../utils/api.js';
+import { searchCoins } from '../utils/api.js';
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { useWatchlist } from '../context/watchlistContext';
 import CoinChart from '../components/CoinChart.jsx';
 import '../styles/page_style/search.css';
 
@@ -79,8 +80,8 @@ const Search = () => {
   const [error, setError] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(0);
-  const [watchlistMembership, setWatchlistMembership] = useState({});
-  const [watchlistLoading, setWatchlistLoading] = useState(false);
+  const { membershipMap, loading: watchlistLoading, removeCoin, refreshWatchlists } = useWatchlist();
+  const [watchlistLoadingLocal, setWatchlistLoadingLocal] = useState(false);
   const [selectedWatchlistCoin, setSelectedWatchlistCoin] = useState(null);
   const [showWatchlistSelector, setShowWatchlistSelector] = useState(false);
   const [coinToRemove, setCoinToRemove] = useState(null);
@@ -119,42 +120,6 @@ const Search = () => {
     fetchCoinData(coinId, currentPage);
   }, [coinId, currentPage]);
 
-  const refreshWatchlistMembership = async () => {
-    if (!authenticated || !user?.id) {
-      setWatchlistMembership({});
-      return;
-    }
-
-    setWatchlistLoading(true);
-
-    try {
-      const { watchlists = [] } = await getWatchlists(user.id);
-      const membership = {};
-
-      await Promise.all(
-        watchlists.map(async (watchlist) => {
-          const response = await getWatchlistItems(watchlist.id);
-          const items = response.items || [];
-          items.forEach((item) => {
-            const ticker = item?.ticker?.ticker;
-            if (ticker && !membership[ticker]) {
-              membership[ticker] = { watchlist, item };
-            }
-          });
-        })
-      );
-
-      setWatchlistMembership(membership);
-    } catch (err) {
-      setWatchlistMembership({});
-    } finally {
-      setWatchlistLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    refreshWatchlistMembership();
-  }, [authenticated, user?.id, searchResults.length]);
 
   const handleSearch = async (event) => {
     event.preventDefault();
@@ -177,14 +142,6 @@ const Search = () => {
       return;
     }
 
-    const membership = watchlistMembership[coin.ticker];
-
-    if (membership) {
-      setCoinToRemove(coin);
-      setRemoveWatchlist(membership.watchlist);
-      return;
-    }
-
     setSelectedWatchlistCoin(coin);
     setShowWatchlistSelector(true);
   };
@@ -200,19 +157,15 @@ const Search = () => {
       return;
     }
 
-    setWatchlistLoading(true);
+    setWatchlistLoadingLocal(true);
     try {
-      await removeCoinFromWatchlist(user.id, removeWatchlist.id, coinToRemove.ticker);
-      setWatchlistMembership((prev) => {
-        const next = { ...prev };
-        delete next[coinToRemove.ticker];
-        return next;
-      });
+      await removeCoin(coinToRemove.ticker, removeWatchlist.id);
+      await refreshWatchlists();
       alert(`${coinToRemove.coin_name} removed from ${removeWatchlist.name}.`);
     } catch (err) {
       alert(err.message || 'Failed to remove from watchlist.');
     } finally {
-      setWatchlistLoading(false);
+      setWatchlistLoadingLocal(false);
       handleCancelRemoval();
     }
   };
@@ -224,11 +177,28 @@ const Search = () => {
 
   const handleWatchlistSelectorSuccess = async () => {
     setShowWatchlistSelector(false);
-    await refreshWatchlistMembership();
+    await refreshWatchlists();
     if (selectedWatchlistCoin) {
       alert(`${selectedWatchlistCoin.coin_name} added to your watchlist.`);
     }
     setSelectedWatchlistCoin(null);
+  };
+
+  const handleRemoveMembershipFromSelector = async (membership) => {
+    if (!user?.id || !membership?.watchlist_id) {
+      return;
+    }
+
+    setWatchlistLoadingLocal(true);
+    try {
+      await removeCoin(selectedWatchlistCoin.ticker, membership.watchlist_id);
+      await refreshWatchlists();
+      alert(`${selectedWatchlistCoin.coin_name} removed from ${membership.watchlist_name}.`);
+    } catch (err) {
+      alert(err.message || 'Failed to remove from watchlist.');
+    } finally {
+      setWatchlistLoadingLocal(false);
+    }
   };
 
   return (
@@ -282,11 +252,13 @@ const Search = () => {
                 type="button"
                 className="watchlist-button"
                 onClick={() => handleWatchlistButtonClick(coin)}
-                disabled={watchlistLoading}
+                disabled={watchlistLoading || watchlistLoadingLocal}
               >
-                {watchlistMembership[coin.ticker]
-                  ? 'Remove from Watchlist'
-                  : 'Add to Watchlist'}
+                {watchlistLoading || watchlistLoadingLocal
+                  ? 'Working...'
+                  : (membershipMap[coin.ticker] || []).length > 0
+                    ? `Manage (${(membershipMap[coin.ticker] || []).length})`
+                    : 'Add to Watchlist'}
               </button>
             </div>
           </div>
@@ -307,6 +279,8 @@ const Search = () => {
           coin={selectedWatchlistCoin}
           onClose={handleWatchlistSelectorClose}
           onSuccess={handleWatchlistSelectorSuccess}
+          existingMemberships={membershipMap[selectedWatchlistCoin.ticker] || []}
+          onRemove={handleRemoveMembershipFromSelector}
         />
       )}
 

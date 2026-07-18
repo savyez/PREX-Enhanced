@@ -94,3 +94,31 @@
 .price-card .watchlist-button {
     margin-top: auto;
 }
+
+.price-card .price-card-actions {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 0.5rem;
+}
+
+.price-card .view-details-button {
+    padding: 0.6rem 0.9rem;
+    border-radius: 10px;
+    background: transparent;
+    border: 1px solid rgba(255,255,255,0.06);
+    color: #cbd5e1;
+    font-weight: 600;
+    transition: all 0.15s ease;
+    cursor: pointer;
+}
+
+.price-card .view-details-button:hover {
+    background: rgba(255,255,255,0.03);
+    border-color: rgba(99,102,241,0.28);
+    color: #fff;
+    transform: translateY(-1px);
+}
+
+.price-card .view-details-button:active {
+    transform: translateY(0);
+}

@@ -1,9 +1,12 @@
+from datetime import timedelta
 from unittest.mock import patch
 
 from django.conf import settings
 from django.core import signing
 from django.urls import reverse
+from django.utils import timezone
 from rest_framework.test import APITestCase
+from rest_framework_simplejwt.token_blacklist.models import OutstandingToken
 
 from .models import Coin, User, Watchlist, WatchlistItem
 from . import views
@@ -173,6 +176,20 @@ class ApiIntegrationTests(APITestCase):
 
         self.assertEqual(response.status_code, 409)
         self.assertEqual(response.data['error'], 'username already exists, try a new one.')
+
+    def test_deleting_user_removes_related_outstanding_tokens(self):
+        user = self.create_user('jules', 'jules@example.com', 'Password123!', email_confirmed=True)
+        OutstandingToken.objects.create(
+            user=user,
+            jti='test-jti',
+            token='test-token',
+            created_at=timezone.now(),
+            expires_at=timezone.now() + timedelta(days=1),
+        )
+
+        user.delete()
+
+        self.assertFalse(OutstandingToken.objects.filter(user_id=user.id).exists())
 
     @patch('api.views.smtplib.SMTP')
     @patch('api.views.smtplib.SMTP_SSL')

@@ -1,5 +1,6 @@
 import smtplib
 import requests
+from django.shortcuts import redirect
 from decouple import config
 from django.core.cache import cache
 from django.db.models import Q
@@ -18,7 +19,6 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.exceptions import TokenError
 from django.contrib.auth.password_validation import validate_password
-from django.core.mail import EmailMultiAlternatives
 from django.template.loader import render_to_string
 from .paginations import get_pagination_params, build_paginated_response
 from .helpers import get_signed_payload, normalize_email_value, normalize_username_value
@@ -32,6 +32,37 @@ HEADERS = {
 }
 
 
+def send_email_message(to_email, subject, text_body, html_content=None):
+    message = EmailMessage()
+    message['Subject'] = subject
+    message['From'] = settings.DEFAULT_FROM_EMAIL
+    message['To'] = to_email
+    message.set_content(text_body)
+
+    if html_content:
+        message.add_alternative(html_content, subtype='html')
+
+    smtp_host = settings.EMAIL_HOST
+    smtp_port = settings.EMAIL_PORT
+    smtp_username = settings.EMAIL_HOST_USER
+    smtp_password = settings.EMAIL_HOST_PASSWORD
+    use_tls = settings.EMAIL_USE_TLS
+    use_ssl = settings.EMAIL_USE_SSL
+
+    if use_ssl:
+        with smtplib.SMTP_SSL(smtp_host, smtp_port) as server:
+            if smtp_username and smtp_password:
+                server.login(smtp_username, smtp_password)
+            server.send_message(message)
+    else:
+        with smtplib.SMTP(smtp_host, smtp_port) as server:
+            if use_tls:
+                server.starttls()
+            if smtp_username and smtp_password:
+                server.login(smtp_username, smtp_password)
+            server.send_message(message)
+
+
 # Function to send verification email using SMTP
 def send_verification_email(to_email, username, verification_url):
     html_content = render_to_string('api/emails/verify_email.html', {
@@ -39,14 +70,13 @@ def send_verification_email(to_email, username, verification_url):
         'verification_url': verification_url,
     })
 
-    email = EmailMultiAlternatives(
-        subject='Verify your PREX account',
-        body=f'Hi {username}, verify your email: {verification_url}',
-        from_email=settings.DEFAULT_FROM_EMAIL,
-        to=[to_email],
+    send_email_message(
+        to_email,
+        'Verify your PREX account',
+        f'Hi {username}, verify your email: {verification_url}',
+        html_content,
     )
-    email.attach_alternative(html_content, "text/html")
-    email.send()
+
 
 def send_password_reset_email(to_email, username, reset_url):
     html_content = render_to_string('api/emails/reset_password.html', {
@@ -54,14 +84,12 @@ def send_password_reset_email(to_email, username, reset_url):
         'reset_password_url': reset_url,
     })
 
-    email = EmailMultiAlternatives(
-        subject='Reset your PREX password',
-        body=f'Hi {username}, reset your password: {reset_url}',
-        from_email=settings.DEFAULT_FROM_EMAIL,
-        to=[to_email],
+    send_email_message(
+        to_email,
+        'Reset your PREX password',
+        f'Hi {username}, reset your password: {reset_url}',
+        html_content,
     )
-    email.attach_alternative(html_content, "text/html")
-    email.send()
 
 
 # Simple view to test the API endpoint
@@ -221,6 +249,7 @@ def coin_list(request):
 
 # view to get the chart data with time from the CoinGecko API
 @api_view(['GET'])
+@permission_classes([AllowAny])
 def get_chart_data(request, coin_id=None):
     try: 
         print("fetching chart data from CoinGecko API.")
@@ -272,48 +301,6 @@ def get_chart_data(request, coin_id=None):
             'Unable to fetch live chart data right now. Please try again later.',
             status.HTTP_502_BAD_GATEWAY
         )
-
-
-#view to update user info through profile page.
-@api_view(['PATCH'])
-@permission_classes([IsAuthenticated])
-def update_user(request, user_id):
-    permission_error = validate_authenticated_user_scope(request, user_id)
-    if permission_error:
-        return permission_error
-
-    try:
-        data = parse_request_data(request)
-        payload = build_user_update_payload(data)
-    except ValueError as error:
-        return build_error_response(str(error))
-
-    if not payload:
-        return build_error_response('Please provide at least one field to update.')
-
-    user = request.user
-    if 'username' in payload and User.objects.filter(username=payload['username']).exclude(id=user.id).exists():
-        return build_error_response(
-            'username already exists, try a new one.',
-            status.HTTP_409_CONFLICT
-        )
-
-    for field, value in payload.items():
-        setattr(user, field, value)
-
-    try:
-        user.save(update_fields=[*payload.keys(), 'updated_at'])
-    except Exception:
-        return build_error_response(
-            'Unable to update your profile right now. Please try again later.',
-            status.HTTP_500_INTERNAL_SERVER_ERROR
-        )
-
-    return Response({
-        'success': True,
-        'message': 'Profile updated successfully.',
-        'user': UserSerializer(user).data
-    })
 
 
 # View to handle user registration, including validation, password hashing, 
@@ -404,6 +391,48 @@ def register_user(request):
         })
 
 
+#view to update user info through profile page.
+@api_view(['PATCH'])
+@permission_classes([IsAuthenticated])
+def update_user(request, user_id):
+    permission_error = validate_authenticated_user_scope(request, user_id)
+    if permission_error:
+        return permission_error
+
+    try:
+        data = parse_request_data(request)
+        payload = build_user_update_payload(data)
+    except ValueError as error:
+        return build_error_response(str(error))
+
+    if not payload:
+        return build_error_response('Please provide at least one field to update.')
+
+    user = request.user
+    if 'username' in payload and User.objects.filter(username=payload['username']).exclude(id=user.id).exists():
+        return build_error_response(
+            'username already exists, try a new one.',
+            status.HTTP_409_CONFLICT
+        )
+
+    for field, value in payload.items():
+        setattr(user, field, value)
+
+    try:
+        user.save(update_fields=[*payload.keys(), 'updated_at'])
+    except Exception:
+        return build_error_response(
+            'Unable to update your profile right now. Please try again later.',
+            status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+    return Response({
+        'success': True,
+        'message': 'Profile updated successfully.',
+        'user': UserSerializer(user).data
+    })
+
+
 # View to handle email verification when the user clicks the link in the verification email, 
 # activating the user account.
 @api_view(['GET'])
@@ -429,7 +458,7 @@ def verify_email(request, token):
         return build_error_response('User not found. Please register again.', status.HTTP_404_NOT_FOUND)
 
     if user.email_confirmed:
-        return Response({'message': 'Email is already verified.'})
+        return redirect(settings.EMAIL_VERIFICATION_SUCCESS_URL)  # Redirect to a frontend page if already verified
 
     # Activate user account
     user.email_confirmed = True
@@ -437,7 +466,7 @@ def verify_email(request, token):
     user.save(update_fields=['email_confirmed', 'updated_at'])
     print(f"You have been verified successfully, Congratulations!")
 
-    return Response({'message': 'Email verified successfully. You can now login to your account.'})
+    return redirect(settings.EMAIL_VERIFICATION_SUCCESS_URL)  # Redirect to a frontend page after successful verification
 
 
 # View to handle user login, including credential validation, 
@@ -783,6 +812,35 @@ def show_watchlist_items(request, watchlist_id):
         'success': True,
         'watchlist': watchlist.name,
         'items': serializer.data
+    })
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def coin_watchlist_membership(request, ticker):
+    """Return all watchlists (and item ids) for the authenticated user that contain the given coin ticker."""
+    if not ticker:
+        return build_error_response('Ticker is required.', status.HTTP_400_BAD_REQUEST)
+
+    ticker = ticker.upper()
+    coin = Coin.objects.filter(ticker=ticker).first()
+    if not coin:
+        return build_error_response('Coin not found.', status.HTTP_404_NOT_FOUND)
+
+    items = WatchlistItem.objects.filter(watchlist__user=request.user, ticker=coin).select_related('watchlist')
+
+    membership = []
+    for item in items:
+        membership.append({
+            'item_id': item.id,
+            'watchlist_id': item.watchlist.id,
+            'watchlist_name': item.watchlist.name,
+            'added_at': item.added_at,
+        })
+
+    return Response({
+        'success': True,
+        'membership': membership,
     })
 
 @api_view(['POST'])

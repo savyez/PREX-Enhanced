@@ -24,17 +24,25 @@ const getAuthHeaders = () => {
   return accessToken ? { Authorization: `Bearer ${accessToken}` } : {};
 };
 
-
-// Centralized API request function with automatic token refresh
 const apiFetch = async (path, options = {}, retry = true) => {
+  const {
+    auth = true,
+    redirectOnAuthFailure = false,
+    headers: customHeaders = {},
+    ...fetchOptions
+  } = options;
+
   const headers = {
     'Content-Type': 'application/json',
-    ...getAuthHeaders(),
-    ...options.headers,
+    ...customHeaders,
   };
 
+  if (auth) {
+    Object.assign(headers, getAuthHeaders());
+  }
+
   const response = await fetch(buildUrl(path), {
-    ...options,
+    ...fetchOptions,
     headers,
   });
 
@@ -43,26 +51,51 @@ const apiFetch = async (path, options = {}, retry = true) => {
     ? await response.json()
     : null;
 
-  // Handle expired access token
   if (
     retry &&
+    auth &&
     localStorage.getItem('access_token') &&
     response.status === 401 &&
     data?.code === 'token_not_valid'
   ) {
-    await refreshAccessToken();
-    return apiFetch(path, options, false);
+    try {
+      await refreshAccessToken();
+      return apiFetch(path, options, false);
+    } catch (error) {
+      if (redirectOnAuthFailure) {
+        redirectToLogin();
+      }
+      throw error;
+    }
   }
 
-  // Handle other errors
   if (!response.ok) {
-    const message = data?.error || data?.detail || data?.message || 'Request failed';
+    if (
+      auth &&
+      redirectOnAuthFailure &&
+      response.status === 401
+    ) {
+      redirectToLogin();
+    }
 
-    throw new Error( Array.isArray(message) ? message.join(' ') : message );
+    const message = data?.error || data?.detail || data?.message || 'Request failed';
+    throw new Error(Array.isArray(message) ? message.join(' ') : message);
   }
 
   return data;
 };
+
+const apiNoAuth = async (path, options = {}) => apiFetch(path, {
+  ...options,
+  auth: false,
+  redirectOnAuthFailure: false,
+});
+
+const apiAuth = async (path, options = {}) => apiFetch(path, {
+  ...options,
+  auth: true,
+  redirectOnAuthFailure: true,
+});
 
 // Refresh access token using the refresh token
 const refreshAccessToken = async () => {
@@ -75,42 +108,37 @@ const refreshAccessToken = async () => {
       const refresh = localStorage.getItem('refresh_token');
 
       if (!refresh) {
-        redirectToLogin();
+        clearAuth();
         throw new Error('No refresh token');
       }
 
-      const response = await fetch (buildUrl('/token/refresh/'),
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            refresh,
-          }),
-        }
-      );
+      const response = await fetch(buildUrl('/token/refresh/'), {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ refresh }),
+      });
 
       if (!response.ok) {
-        redirectToLogin();
+        clearAuth();
         throw new Error('Session expired');
       }
 
       const data = await response.json();
 
       if (!data.access) {
-        redirectToLogin();
+        clearAuth();
         throw new Error('Invalid refresh response');
       }
 
-      localStorage.setItem( 'access_token', data.access );
+      localStorage.setItem('access_token', data.access);
 
       if (data.refresh) {
-        localStorage.setItem( 'refresh_token', data.refresh );
+        localStorage.setItem('refresh_token', data.refresh);
       }
 
       return data.access;
-
     } finally {
       refreshPromise = null;
     }
@@ -122,7 +150,7 @@ const refreshAccessToken = async () => {
 
 // API functions for authentication and watchlist management
 const login = (credentials) => (
-  apiFetch('/login/', {
+  apiNoAuth('/login/', {
     method: 'POST',
     body: JSON.stringify(credentials),
   })
@@ -131,7 +159,7 @@ const login = (credentials) => (
 
 // Note: The register function is currently unused, but it's included here for completeness and future use.
 const register = (userData) => (
-  apiFetch('/register/', {
+  apiNoAuth('/register/', {
     method: 'POST',
     body: JSON.stringify(userData),
   })
@@ -140,7 +168,7 @@ const register = (userData) => (
 
 // Note: The logout function is currently unused, but it's included here for completeness and future use.
 const logout = () =>
-  apiFetch('/logout/', {
+  apiNoAuth('/logout/', {
     method: 'POST',
     body: JSON.stringify({
       refresh_token: localStorage.getItem('refresh_token'),
@@ -150,20 +178,23 @@ const logout = () =>
 
 // Fetch list of coins from the API
 const getCoins = (page = 1, pageSize = 25) =>
-  apiFetch(`/coins/?page=${page}&page_size=${pageSize}`);
+  apiNoAuth(`/coins/?page=${page}&page_size=${pageSize}`);
 
 
 // Fetch watchlists for a specific user
-const getWatchlists = (userId) => apiFetch(`/watchlists/${userId}/`);
+const getWatchlists = (userId) => apiAuth(`/watchlists/${userId}/`);
 
 
 // Fetch coins in a specific watchlist
-const getWatchlistItems = (watchlistId) => apiFetch(`/watchlists/${watchlistId}/items/`);
+const getWatchlistItems = (watchlistId) => apiAuth(`/watchlists/${watchlistId}/items/`);
+
+// Get membership for a specific coin ticker for the current authenticated user
+const getWatchlistMembershipForCoin = (ticker) => apiAuth(`/watchlists/membership/${encodeURIComponent(ticker)}/`);
 
 
 // Add a coin to a specific watchlist
 const addCoinToWatchlist = (userId, watchlistId, ticker) =>
-  apiFetch('/watchlists/add-coin/', {
+  apiAuth('/watchlists/add-coin/', {
     method: 'POST',
     body: JSON.stringify({
       user_id: userId,
@@ -175,7 +206,7 @@ const addCoinToWatchlist = (userId, watchlistId, ticker) =>
 
 // Remove a coin from a specific watchlist
 const removeCoinFromWatchlist = (userId, watchlistId, ticker) =>
-  apiFetch('/watchlists/remove-coin/', {
+  apiAuth('/watchlists/remove-coin/', {
     method: 'POST',
     body: JSON.stringify({
       user_id: userId,
@@ -186,7 +217,7 @@ const removeCoinFromWatchlist = (userId, watchlistId, ticker) =>
 
 // Create a new watchlist for a user
 const createWatchlist = (userId, name) =>
-  apiFetch('/watchlists/create/', {
+  apiAuth('/watchlists/create/', {
     method: 'POST',
     body: JSON.stringify({
       user_id: userId,
@@ -196,7 +227,7 @@ const createWatchlist = (userId, name) =>
 
 // Delete a watchlist for a user
 const deleteWatchlist = (userId, watchlistId) =>
-  apiFetch(`/watchlists/${watchlistId}/delete/`, {
+  apiAuth(`/watchlists/${watchlistId}/delete/`, {
     method: 'POST',
     body: JSON.stringify({
       user_id: userId,
@@ -205,35 +236,38 @@ const deleteWatchlist = (userId, watchlistId) =>
 
 
 const updateUserProfile = (userId, profileData) =>
-  apiFetch(`/users/${userId}/`, {
+  apiAuth(`/users/${userId}/`, {
     method: 'PATCH',
     body: JSON.stringify(profileData),
   });
 
 
-const getCurrentUser = () => apiFetch('/current-user/');
+const getCurrentUser = () => apiAuth('/current-user/');
 
 
 const searchCoins = (coinId, page = 1, pageSize = 10) =>
-  apiFetch(`/coins/search/${encodeURIComponent(coinId)}/?page=${page}&page_size=${pageSize}`);
+  apiNoAuth(`/coins/search/${encodeURIComponent(coinId)}/?page=${page}&page_size=${pageSize}`);
 
 const requestPasswordReset = (email) =>
-  apiFetch('/reset-password/', {
+  apiNoAuth('/reset-password/', {
     method: 'POST',
     body: JSON.stringify({ email }),
   });
 
-const chart_data = (coinId, days) => apiFetch(`/coins/${encodeURIComponent(coinId)}/chart/?days=${days}`);
+const chart_data = (coinId, days) => apiNoAuth(`/coins/${encodeURIComponent(coinId)}/chart/?days=${days}`);
 
 
 export { 
   apiFetch, 
+  apiNoAuth,
+  apiAuth,
   login, 
   register, 
   logout, 
   getCoins, 
   getWatchlists, 
   getWatchlistItems, 
+  getWatchlistMembershipForCoin,
   addCoinToWatchlist, 
   removeCoinFromWatchlist,
   createWatchlist,

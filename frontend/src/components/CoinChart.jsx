@@ -12,7 +12,7 @@ const normalizeChartPoints = (points = []) =>
 
 const getCoinChartKey = (coin) => coin?.ticker || coin?.coin_name || '';
 
-function CoinChart({ coin, height = 84, showAxes = false }) {
+function CoinChart({ coin, height = 84, showAxes = false, hidden = false }) {
     const [chartData, setChartData] = useState([]);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
@@ -28,7 +28,15 @@ function CoinChart({ coin, height = 84, showAxes = false }) {
                 isActive = false;
             };
         }
-
+        if (hidden) {
+            // If chart is hidden, don't fetch data.
+            setChartData([]);
+            setLoading(false);
+            setError(null);
+            return () => {
+                isActive = false;
+            };
+        }
         const loadChart = async () => {
             setLoading(true);
             setError(null);
@@ -57,7 +65,7 @@ function CoinChart({ coin, height = 84, showAxes = false }) {
         return () => {
             isActive = false;
         };
-    }, [coin]);
+    }, [coin, hidden]);
 
     if (!coin) {
         return null;

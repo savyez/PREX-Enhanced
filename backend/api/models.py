@@ -2,6 +2,9 @@ import uuid
 from django.db import models
 from django.contrib.auth.base_user import AbstractBaseUser, BaseUserManager
 from django.contrib.auth.models import PermissionsMixin
+from django.db.models.signals import pre_delete
+from django.dispatch import receiver
+from rest_framework_simplejwt.token_blacklist.models import OutstandingToken
 
 
 class UserManager(BaseUserManager):
@@ -69,6 +72,11 @@ class User(AbstractBaseUser, PermissionsMixin):
 
     def __str__(self):
         return self.username
+
+
+@receiver(pre_delete, sender=User)
+def cleanup_user_tokens(sender, instance, **kwargs):
+    OutstandingToken.objects.filter(user_id=instance.id).delete()
 
 
 # Model for the Coin, representing a cryptocurrency with its details.

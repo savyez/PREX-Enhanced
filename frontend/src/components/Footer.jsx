@@ -8,7 +8,6 @@ const Footer = () => {
             <div className="footer-content">
                 <div className="footer-brand">
                     <Link to="/" className="footer-logo">PREX</Link>
-                    <p>Helpful content and services, built for a smoother experience.</p>
                 </div>
 
                 <nav className="footer-nav">

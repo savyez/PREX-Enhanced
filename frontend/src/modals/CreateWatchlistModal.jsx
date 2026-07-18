@@ -16,8 +16,8 @@ function CreateWatchlistModal({ onClose, onSuccess }) {
     setError('');
 
     try {
-      const { apiFetch } = await import('../utils/api');
-      const data = await apiFetch('/watchlists/create/', {
+      const { apiAuth } = await import('../utils/api');
+      const data = await apiAuth('/watchlists/create/', {
         method: 'POST',
         body: JSON.stringify({ name: watchlistName.trim() }),
       });

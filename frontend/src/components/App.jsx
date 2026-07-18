@@ -1,6 +1,7 @@
 import '../styles/component_style/App.css';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { AuthProvider } from '../context/AuthContext';
+import { WatchlistProvider } from '../context/watchlistContext';
 
 // Components
 import AppContent from './AppContent';
@@ -24,8 +25,9 @@ function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
-        <AppContent>
-          <Routes>
+        <WatchlistProvider>
+          <AppContent>
+            <Routes>
             <Route path="/" element={<Home />} />
             <Route path="/prices" element={<Prices />} />
             <Route path="/watchlist" element={<Watchlist />} />
@@ -40,8 +42,9 @@ function App() {
             <Route path="/search" element={<Search />} />
             <Route path="/coins/search/:coinId" element={<Search />} />
             <Route path="/logout" element={<Logout />} />
-          </Routes>
-        </AppContent>
+            </Routes>
+          </AppContent>
+        </WatchlistProvider>
       </AuthProvider>
     </BrowserRouter>
   );
