@@ -4,8 +4,8 @@ import ConfirmationModal from '../modals/ConfirmationModal.jsx';
 import { searchCoins } from '../utils/api.js';
 import { lazy, Suspense, useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { useAuth } from '../context/AuthContext';
-import { useWatchlist } from '../context/watchlistContext';
+import { useAuth } from '../context/authContext.jsx';
+import { useWatchlist } from '../context/watchlistContext.jsx';
 import '../styles/page_style/search.css';
 
 const CoinChart = lazy(() => import('../components/CoinChart.jsx'));

@@ -1,7 +1,8 @@
 import smtplib
 import requests
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 from django.shortcuts import redirect
-from decouple import config
 from django.core.cache import cache
 from django.db.models import Q
 from .models import Coin, User, Watchlist, WatchlistItem
@@ -24,12 +25,44 @@ from .paginations import get_pagination_params, build_paginated_response
 from .helpers import get_signed_payload, normalize_email_value, normalize_username_value
 
 # Constants for CoinGecko API access
-COINGECKO_API_URL = config('COINGECKO_API_URL')
-COINGECKO_CHART_URL = config('COINGECKO_CHART_URL')
-COINGECKO_SEARCH_URL = 'https://api.coingecko.com/api/v3/search'
+COINGECKO_API_URL = settings.COINGECKO_API_URL
+COINGECKO_CHART_URL = settings.COINGECKO_CHART_URL
+COINGECKO_SEARCH_URL = settings.COINGECKO_SEARCH_URL
 HEADERS = {
-    "x-cg-demo-api-key": config('COINGECKO_API_KEY')
+    "x-cg-demo-api-key": settings.COINGECKO_API_KEY
 }
+COINGECKO_TIMEOUT = (3, 10)
+
+
+class CoinGeckoTimeout(Exception):
+    """Raised when CoinGecko does not respond within the configured timeout."""
+
+
+def fetch_coingecko(url, params=None):
+    retry_strategy = Retry(
+        total=2,
+        connect=2,
+        read=2,
+        backoff_factor=0.5,
+        status_forcelist=(429, 502, 503, 504),
+        allowed_methods=frozenset({'GET'}),
+        # Keep retry delays bounded so an upstream header cannot block a worker indefinitely.
+        respect_retry_after_header=False,
+        raise_on_status=False,
+    )
+    adapter = HTTPAdapter(max_retries=retry_strategy)
+
+    with requests.Session() as session:
+        session.mount('https://', adapter)
+        try:
+            return session.get(
+                url,
+                params=params,
+                headers=HEADERS,
+                timeout=COINGECKO_TIMEOUT,
+            )
+        except requests.Timeout as error:
+            raise CoinGeckoTimeout from error
 
 
 def send_email_message(to_email, subject, text_body, html_content=None):
@@ -168,9 +201,11 @@ def resolve_coin_gecko_id(coin_id):
         normalized_coin_id = local_coin.coin_name.strip()
 
     try:
-        response = requests.get(COINGECKO_SEARCH_URL, params={'query': normalized_coin_id}, headers=HEADERS)
+        response = fetch_coingecko(COINGECKO_SEARCH_URL, params={'query': normalized_coin_id})
         response.raise_for_status()
         payload = response.json()
+    except CoinGeckoTimeout:
+        raise
     except (requests.RequestException, ValueError):
         return None
 
@@ -198,16 +233,21 @@ def resolve_coin_gecko_id(coin_id):
 def coin_list(request):
     try:
         print(f"Fetching Coin Data")
-        response = requests.get(COINGECKO_API_URL, params={
+        response = fetch_coingecko(COINGECKO_API_URL, params={
             "vs_currency": "usd",
             "order_by": "market_cap_rank_asc",
             "per_page": 250,
             "page": 1,
             "sparkline": True
-        }, headers=HEADERS)
+        })
         response.raise_for_status()
         print(f"Coin Data fetched successfully!")
 
+    except CoinGeckoTimeout:
+        return build_error_response(
+            'Coin data service timed out. Please try again later.',
+            status.HTTP_504_GATEWAY_TIMEOUT
+        )
     except requests.RequestException:
         return build_error_response(
             'Unable to fetch live coin data right now. Please try again later.',
@@ -271,13 +311,13 @@ def get_chart_data(request, coin_id=None):
         if cached_chart:
             return Response(cached_chart)
 
-        response = requests.get(f"{COINGECKO_CHART_URL}{resolved_coin_id}/market_chart", params={
+        response = fetch_coingecko(f"{COINGECKO_CHART_URL}{resolved_coin_id}/market_chart", params={
             "vs_currency": "usd",
             "days": days,
             "interval": "hourly",
             "precision": 4,
             "sparkline": True
-        }, headers=HEADERS)
+        })
         response.raise_for_status()
         data = response.json()
         prices = data.get('prices', [])
@@ -296,6 +336,11 @@ def get_chart_data(request, coin_id=None):
         }
         cache.set(cache_key, payload, timeout=300)
         return Response(payload)
+    except CoinGeckoTimeout:
+        return build_error_response(
+            'Chart data service timed out. Please try again later.',
+            status.HTTP_504_GATEWAY_TIMEOUT
+        )
     except requests.RequestException:
         return build_error_response(
             'Unable to fetch live chart data right now. Please try again later.',

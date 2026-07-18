@@ -139,6 +139,31 @@ class ApiIntegrationTests(APITestCase):
         self.assertIn('refresh_token', response.data)
         self.assertEqual(response.data['user']['email'], 'fay@example.com')
 
+    def test_health_check_is_public(self):
+        response = self.client.get(reverse('health_check'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data['status'], 'ok')
+
+    @patch('api.views.fetch_coingecko', side_effect=views.CoinGeckoTimeout)
+    def test_coin_list_returns_gateway_timeout_when_provider_times_out(self, fetch_mock):
+        response = self.client.get(reverse('coin_list'))
+
+        self.assertEqual(response.status_code, 504)
+        self.assertIn('timed out', response.data['error'])
+        fetch_mock.assert_called_once()
+
+    @patch('api.views.fetch_coingecko', side_effect=views.CoinGeckoTimeout)
+    def test_chart_returns_gateway_timeout_when_provider_times_out(self, fetch_mock):
+        response = self.client.get(
+            reverse('coin_chart', kwargs={'coin_id': 'BTC'}),
+            {'days': 7},
+        )
+
+        self.assertEqual(response.status_code, 504)
+        self.assertIn('timed out', response.data['error'])
+        fetch_mock.assert_called_once()
+
     def test_logout_requires_ownership_of_refresh_token(self):
         user1 = self.create_user('fayone', 'fayone@example.com', 'Password123!', email_confirmed=True)
         user2 = self.create_user('faytwo', 'faytwo@example.com', 'Password123!', email_confirmed=True)

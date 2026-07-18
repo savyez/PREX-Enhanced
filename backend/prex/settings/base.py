@@ -3,11 +3,12 @@
 
 from datetime import timedelta
 from pathlib import Path
-from decouple import config
+from django.core.exceptions import ImproperlyConfigured
+from .environment import config, validate_required
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
-SECRET_KEY = config('DJANGO_SECRET_KEY')
+SECRET_KEY = config('DJANGO_SECRET_KEY', default='')
 
 INSTALLED_APPS = [
     'django.contrib.admin',
@@ -97,7 +98,7 @@ PASSWORD_HASHERS = [
 
 # Email — config values come from .env, so safe in base
 EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
-EMAIL_HOST = 'smtp.gmail.com'
+EMAIL_HOST = config('EMAIL_HOST', default='smtp.gmail.com')
 EMAIL_PORT = config('EMAIL_PORT', cast=int, default=587)
 EMAIL_HOST_USER = config('EMAIL_HOST_USER', default='')
 EMAIL_HOST_PASSWORD = config('EMAIL_HOST_PASSWORD', default='')
@@ -108,18 +109,36 @@ SERVER_EMAIL = DEFAULT_FROM_EMAIL
 
 EMAIL_VERIFICATION_SALT = 'api.email_verification'
 EMAIL_VERIFICATION_MAX_AGE_SECONDS = config('EMAIL_VERIFICATION_MAX_AGE_SECONDS', cast=int, default=600)
-EMAIL_VERIFICATION_URL = config('EMAIL_VERIFICATION_URL')
-EMAIL_VERIFICATION_SUCCESS_URL = config('EMAIL_VERIFICATION_SUCCESS_URL')
+EMAIL_VERIFICATION_URL = config('EMAIL_VERIFICATION_URL', default='')
+EMAIL_VERIFICATION_SUCCESS_URL = config('EMAIL_VERIFICATION_SUCCESS_URL', default='')
 PASSWORD_RESET_SALT = 'api.password_reset'
 PASSWORD_RESET_MAX_AGE_SECONDS = config('PASSWORD_RESET_MAX_AGE_SECONDS', cast=int, default=600)
 
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
-        'NAME': config('DB_NAME'),
-        'USER': config('DB_USER'),
-        'PASSWORD': config('DB_PASSWORD'),
-        'HOST': config('DB_HOST'),
-        'PORT': config('DB_PORT'),
+        'NAME': config('DB_NAME', default=''),
+        'USER': config('DB_USER', default=''),
+        'PASSWORD': config('DB_PASSWORD', default=''),
+        'HOST': config('DB_HOST', default=''),
+        'PORT': config('DB_PORT', cast=int, default=5432),
     }
 }
+
+COINGECKO_API_URL = config('COINGECKO_API_URL', default='https://api.coingecko.com/api/v3/coins/markets')
+COINGECKO_CHART_URL = config('COINGECKO_CHART_URL', default='https://api.coingecko.com/api/v3/coins/')
+COINGECKO_SEARCH_URL = config('COINGECKO_SEARCH_URL', default='https://api.coingecko.com/api/v3/search')
+COINGECKO_API_KEY = config('COINGECKO_API_KEY', default='')
+
+if EMAIL_USE_TLS and EMAIL_USE_SSL:
+    raise ImproperlyConfigured('EMAIL_USE_TLS and EMAIL_USE_SSL cannot both be true.')
+
+validate_required({
+    'DJANGO_SECRET_KEY': SECRET_KEY,
+    'EMAIL_VERIFICATION_URL': EMAIL_VERIFICATION_URL,
+    'EMAIL_VERIFICATION_SUCCESS_URL': EMAIL_VERIFICATION_SUCCESS_URL,
+    'DB_NAME': DATABASES['default']['NAME'],
+    'DB_USER': DATABASES['default']['USER'],
+    'DB_PASSWORD': DATABASES['default']['PASSWORD'],
+    'DB_HOST': DATABASES['default']['HOST'],
+})

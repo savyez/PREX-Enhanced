@@ -4,7 +4,7 @@ import Button from '../components/Button.jsx';
 import CreateWatchlistModal from '../modals/CreateWatchlistModal.jsx';
 import ConfirmationModal from '../modals/ConfirmationModal.jsx';
 import { getWatchlistItems, getWatchlists, deleteWatchlist } from '../utils/api.js';
-import { useAuth } from '../context/AuthContext';
+import { useAuth } from '../context/authContext.jsx';
 import { useNavigate } from 'react-router-dom';
 import { removeCoinFromWatchlist } from '../utils/api.js';
 

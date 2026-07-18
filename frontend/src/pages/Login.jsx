@@ -2,7 +2,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useState } from 'react';
 import Form from '../components/Form';
 import { login } from '../utils/api';
-import { useAuth } from '../context/AuthContext';
+import { useAuth } from '../context/authContext';
 import '../styles/page_style/login.css';
 
 const loginFields = [

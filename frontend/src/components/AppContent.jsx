@@ -1,4 +1,4 @@
-import { useAuth } from '../context/AuthContext';
+import { useAuth } from '../context/authContext';
 import Navbar from './Navbar';
 import Footer from './Footer';
 import { useState } from 'react';

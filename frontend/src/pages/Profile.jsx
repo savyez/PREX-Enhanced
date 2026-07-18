@@ -2,7 +2,7 @@ import { Link } from 'react-router-dom';
 import { useState } from 'react';
 import Button from '../components/Button.jsx';
 import { updateUserProfile } from '../utils/api.js';
-import { useAuth } from '../context/AuthContext';
+import { useAuth } from '../context/authContext.jsx';
 import '../styles/page_style/profile.css';
 
 function Profile() {

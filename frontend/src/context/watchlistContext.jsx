@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
-import { useAuth } from './AuthContext';
+import { useAuth } from './authContext';
 import { addCoinToWatchlist, getWatchlistItems, getWatchlists, removeCoinFromWatchlist } from '../utils/api';
 
 const WatchlistContext = createContext(null);

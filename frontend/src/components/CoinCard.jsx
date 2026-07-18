@@ -1,6 +1,6 @@
 import { lazy, Suspense, useState } from 'react';
-import { useAuth } from '../context/AuthContext';
-import { useWatchlist } from '../context/watchlistContext';
+import { useAuth } from '../context/authContext.jsx';
+import { useWatchlist } from '../context/watchlistContext.jsx';
 import Card from './Card.jsx';
 import '../styles/component_style/coinCard.css';
 
