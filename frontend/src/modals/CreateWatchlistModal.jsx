@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { apiAuth } from '../utils/api';
 import '../styles/modal_style/create-watchlist-modal.css';
 
 function CreateWatchlistModal({ onClose, onSuccess }) {
@@ -16,7 +17,6 @@ function CreateWatchlistModal({ onClose, onSuccess }) {
     setError('');
 
     try {
-      const { apiAuth } = await import('../utils/api');
       const data = await apiAuth('/watchlists/create/', {
         method: 'POST',
         body: JSON.stringify({ name: watchlistName.trim() }),

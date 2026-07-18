@@ -1,14 +1,15 @@
 import SearchBar from '../components/SearchBar';
 import Pagination from '../components/Pagination.jsx';
-import WatchlistSelector from '../components/WatchlistSelector.jsx';
 import ConfirmationModal from '../modals/ConfirmationModal.jsx';
 import { searchCoins } from '../utils/api.js';
-import { useEffect, useMemo, useState } from 'react';
+import { lazy, Suspense, useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useWatchlist } from '../context/watchlistContext';
-import CoinChart from '../components/CoinChart.jsx';
 import '../styles/page_style/search.css';
+
+const CoinChart = lazy(() => import('../components/CoinChart.jsx'));
+const WatchlistSelector = lazy(() => import('../components/WatchlistSelector.jsx'));
 
 const formatPrice = (price) => {
   const numericPrice = Number(price);
@@ -36,7 +37,6 @@ const formatTime = (last_updated_at) => {
   }
 
   if (hours === 0) {
-    hours = 12;
     return `12:${minutes}:${seconds} AM`;
   }
 
@@ -87,6 +87,8 @@ const Search = () => {
   const [coinToRemove, setCoinToRemove] = useState(null);
   const [removeWatchlist, setRemoveWatchlist] = useState(null);
   const resultsPerPage = 10;
+  const displayedResults = coinId ? searchResults : [];
+  const displayedError = coinId ? error : null;
 
   const fetchCoinData = async (query, page = 1) => {
     try {
@@ -110,14 +112,14 @@ const Search = () => {
 
   useEffect(() => {
     if (!coinId) {
-      setSearchResults([]);
-      setTotalPages(0);
-      setCurrentPage(1);
       return;
     }
 
-    setSearchTerm(coinId);
-    fetchCoinData(coinId, currentPage);
+    const requestTimer = window.setTimeout(() => {
+      fetchCoinData(coinId, currentPage);
+    }, 0);
+
+    return () => window.clearTimeout(requestTimer);
   }, [coinId, currentPage]);
 
 
@@ -218,13 +220,13 @@ const Search = () => {
 
       <div className="search-results">
         {isLoading && <p>Loading Coin Data ...</p>}
-        {error && <p className="price-down">{error}</p>}
+        {displayedError && <p className="price-down">{displayedError}</p>}
 
-        {!isLoading && !error && coinId && searchResults.length === 0 && (
+        {!isLoading && !displayedError && coinId && displayedResults.length === 0 && (
           <p>No coins found.</p>
         )}
 
-        {!isLoading && !error && searchResults.map((coin) => (
+        {!isLoading && !displayedError && displayedResults.map((coin) => (
           <div key={coin.ticker} className="search-item">
             <div className="search-result">
               <div className="search-result-layout">
@@ -243,11 +245,13 @@ const Search = () => {
             </div>
 
             <div className="search-result-chart search-result-chart--fullwidth">
-              <CoinChart
-                coin={coin}
-                height={260}
-                showAxes
-              />
+              <Suspense fallback={null}>
+                <CoinChart
+                  coin={coin}
+                  height={260}
+                  showAxes
+                />
+              </Suspense>
               <button
                 type="button"
                 className="watchlist-button"
@@ -265,7 +269,7 @@ const Search = () => {
         ))}
       </div>
 
-      {!isLoading && !error && totalPages > 1 && (
+      {!isLoading && !displayedError && coinId && totalPages > 1 && (
         <Pagination
           currentPage={currentPage}
           totalPages={totalPages}
@@ -275,13 +279,15 @@ const Search = () => {
       )}
 
       {showWatchlistSelector && selectedWatchlistCoin && (
-        <WatchlistSelector
-          coin={selectedWatchlistCoin}
-          onClose={handleWatchlistSelectorClose}
-          onSuccess={handleWatchlistSelectorSuccess}
-          existingMemberships={membershipMap[selectedWatchlistCoin.ticker] || []}
-          onRemove={handleRemoveMembershipFromSelector}
-        />
+        <Suspense fallback={null}>
+          <WatchlistSelector
+            coin={selectedWatchlistCoin}
+            onClose={handleWatchlistSelectorClose}
+            onSuccess={handleWatchlistSelectorSuccess}
+            existingMemberships={membershipMap[selectedWatchlistCoin.ticker] || []}
+            onRemove={handleRemoveMembershipFromSelector}
+          />
+        </Suspense>
       )}
 
       {coinToRemove && removeWatchlist && (

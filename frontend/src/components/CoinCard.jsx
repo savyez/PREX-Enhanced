@@ -1,10 +1,11 @@
-import { useState } from 'react';
+import { lazy, Suspense, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useWatchlist } from '../context/watchlistContext';
 import Card from './Card.jsx';
-import CoinChart from './CoinChart.jsx';
-import WatchlistSelector from './WatchlistSelector.jsx';
 import '../styles/component_style/coinCard.css';
+
+const CoinChart = lazy(() => import('./CoinChart.jsx'));
+const WatchlistSelector = lazy(() => import('./WatchlistSelector.jsx'));
 
 function CoinCard({ coin, rank, onCardClick, showChart = false }) {
     const { authenticated } = useAuth();
@@ -77,10 +78,12 @@ function CoinCard({ coin, rank, onCardClick, showChart = false }) {
                 </div>
 
                 {showChart && (
-                    <CoinChart
-                        coin={coin}
-                        height={84}
-                    />
+                    <Suspense fallback={null}>
+                        <CoinChart
+                            coin={coin}
+                            height={84}
+                        />
+                    </Suspense>
                 )}
 
                 <div className="price-card-actions">
@@ -111,13 +114,15 @@ function CoinCard({ coin, rank, onCardClick, showChart = false }) {
             </Card>
 
             {showWatchlistSelector && (
-                <WatchlistSelector
-                    coin={coin}
-                    onClose={handleWatchlistSelectorClose}
-                    onSuccess={handleWatchlistSelectorSuccess}
-                    existingMemberships={memberWatchlists}
-                    onRemove={handleRemoveMembership}
-                />
+                <Suspense fallback={null}>
+                    <WatchlistSelector
+                        coin={coin}
+                        onClose={handleWatchlistSelectorClose}
+                        onSuccess={handleWatchlistSelectorSuccess}
+                        existingMemberships={memberWatchlists}
+                        onRemove={handleRemoveMembership}
+                    />
+                </Suspense>
             )}
         </>
     );
