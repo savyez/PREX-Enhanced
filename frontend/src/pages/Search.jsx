@@ -1,10 +1,12 @@
 import SearchBar from '../components/SearchBar';
 import Pagination from '../components/Pagination.jsx';
-import { searchCoins } from '../utils/api.js';
-import { useEffect, useState } from 'react';
+import WatchlistSelector from '../components/WatchlistSelector.jsx';
+import ConfirmationModal from '../modals/ConfirmationModal.jsx';
+import { searchCoins, getWatchlists, getWatchlistItems, removeCoinFromWatchlist } from '../utils/api.js';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import SparklineChart from '../components/SparklineChart.jsx';
-import { useSparklineCache } from '../hooks/useSparklineCache.js';
+import { useAuth } from '../context/AuthContext';
+import CoinChart from '../components/CoinChart.jsx';
 import '../styles/page_style/search.css';
 
 const formatPrice = (price) => {
@@ -70,14 +72,20 @@ const getPriceChangeClass = (price_change_24h) => {
 const Search = () => {
   const { coinId } = useParams();
   const navigate = useNavigate();
+  const { authenticated, user } = useAuth();
   const [searchTerm, setSearchTerm] = useState('');
   const [searchResults, setSearchResults] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(0);
+  const [watchlistMembership, setWatchlistMembership] = useState({});
+  const [watchlistLoading, setWatchlistLoading] = useState(false);
+  const [selectedWatchlistCoin, setSelectedWatchlistCoin] = useState(null);
+  const [showWatchlistSelector, setShowWatchlistSelector] = useState(false);
+  const [coinToRemove, setCoinToRemove] = useState(null);
+  const [removeWatchlist, setRemoveWatchlist] = useState(null);
   const resultsPerPage = 10;
-  const { cache: sparklineCache, resetCache } = useSparklineCache(searchResults, 'coin_name');
 
   const fetchCoinData = async (query, page = 1) => {
     try {
@@ -104,13 +112,49 @@ const Search = () => {
       setSearchResults([]);
       setTotalPages(0);
       setCurrentPage(1);
-      resetCache();
       return;
     }
 
     setSearchTerm(coinId);
     fetchCoinData(coinId, currentPage);
   }, [coinId, currentPage]);
+
+  const refreshWatchlistMembership = async () => {
+    if (!authenticated || !user?.id) {
+      setWatchlistMembership({});
+      return;
+    }
+
+    setWatchlistLoading(true);
+
+    try {
+      const { watchlists = [] } = await getWatchlists(user.id);
+      const membership = {};
+
+      await Promise.all(
+        watchlists.map(async (watchlist) => {
+          const response = await getWatchlistItems(watchlist.id);
+          const items = response.items || [];
+          items.forEach((item) => {
+            const ticker = item?.ticker?.ticker;
+            if (ticker && !membership[ticker]) {
+              membership[ticker] = { watchlist, item };
+            }
+          });
+        })
+      );
+
+      setWatchlistMembership(membership);
+    } catch (err) {
+      setWatchlistMembership({});
+    } finally {
+      setWatchlistLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    refreshWatchlistMembership();
+  }, [authenticated, user?.id, searchResults.length]);
 
   const handleSearch = async (event) => {
     event.preventDefault();
@@ -125,6 +169,66 @@ const Search = () => {
 
     setCurrentPage(1);
     navigate(`/coins/search/${encodeURIComponent(query)}`);
+  };
+
+  const handleWatchlistButtonClick = async (coin) => {
+    if (!authenticated) {
+      alert('Please log in to manage your watchlist.');
+      return;
+    }
+
+    const membership = watchlistMembership[coin.ticker];
+
+    if (membership) {
+      setCoinToRemove(coin);
+      setRemoveWatchlist(membership.watchlist);
+      return;
+    }
+
+    setSelectedWatchlistCoin(coin);
+    setShowWatchlistSelector(true);
+  };
+
+  const handleCancelRemoval = () => {
+    setCoinToRemove(null);
+    setRemoveWatchlist(null);
+  };
+
+  const handleConfirmRemoval = async () => {
+    if (!coinToRemove || !removeWatchlist) {
+      handleCancelRemoval();
+      return;
+    }
+
+    setWatchlistLoading(true);
+    try {
+      await removeCoinFromWatchlist(user.id, removeWatchlist.id, coinToRemove.ticker);
+      setWatchlistMembership((prev) => {
+        const next = { ...prev };
+        delete next[coinToRemove.ticker];
+        return next;
+      });
+      alert(`${coinToRemove.coin_name} removed from ${removeWatchlist.name}.`);
+    } catch (err) {
+      alert(err.message || 'Failed to remove from watchlist.');
+    } finally {
+      setWatchlistLoading(false);
+      handleCancelRemoval();
+    }
+  };
+
+  const handleWatchlistSelectorClose = () => {
+    setShowWatchlistSelector(false);
+    setSelectedWatchlistCoin(null);
+  };
+
+  const handleWatchlistSelectorSuccess = async () => {
+    setShowWatchlistSelector(false);
+    await refreshWatchlistMembership();
+    if (selectedWatchlistCoin) {
+      alert(`${selectedWatchlistCoin.coin_name} added to your watchlist.`);
+    }
+    setSelectedWatchlistCoin(null);
   };
 
   return (
@@ -151,31 +255,39 @@ const Search = () => {
         )}
 
         {!isLoading && !error && searchResults.map((coin) => (
-          <div key={coin.ticker} className="search-result">
-            <div className="search-result-layout">
-              <div className="search-result-details">
-                <h2>{coin.coin_name}</h2>
-                <p>Ticker: <b>{coin.ticker}</b></p>
-                <p>Price: ${formatPrice(coin.price)}</p>
-                <p className={getPriceChangeClass(coin.price_change_24h)}>
-                  Change (24h): {formatPriceChange(coin.price_change_24h)}
-                </p>
-                <p>Total Market Volume: {formatCur(coin.market_volume)}</p>
-                <p>Market Cap Rank: {coin.market_cap_rank}</p>
-                <p>Last Updated at: {formatTime(coin.last_updated_at)}</p>
+          <div key={coin.ticker} className="search-item">
+            <div className="search-result">
+              <div className="search-result-layout">
+                <div className="search-result-details">
+                  <h2>{coin.coin_name}</h2>
+                  <p>Ticker: <b>{coin.ticker}</b></p>
+                  <p>Price: ${formatPrice(coin.price)}</p>
+                  <p className={getPriceChangeClass(coin.price_change_24h)}>
+                    Change (24h): {formatPriceChange(coin.price_change_24h)}
+                  </p>
+                  <p>Total Market Volume: {formatCur(coin.market_volume)}</p>
+                  <p>Market Cap Rank: {coin.market_cap_rank}</p>
+                  <p>Last Updated at: {formatTime(coin.last_updated_at)}</p>
+                </div>
               </div>
+            </div>
 
-              <div className="search-result-chart">
-                <SparklineChart
-                  data={sparklineCache[coin.coin_name]?.data || []}
-                  loading={sparklineCache[coin.coin_name]?.loading ?? true}
-                  error={sparklineCache[coin.coin_name]?.error || null}
-                  chartId={coin.ticker}
-                  height={220}
-                  showAxes
-                  title="Price Trend"
-                />
-              </div>
+            <div className="search-result-chart search-result-chart--fullwidth">
+              <CoinChart
+                coin={coin}
+                height={260}
+                showAxes
+              />
+              <button
+                type="button"
+                className="watchlist-button"
+                onClick={() => handleWatchlistButtonClick(coin)}
+                disabled={watchlistLoading}
+              >
+                {watchlistMembership[coin.ticker]
+                  ? 'Remove from Watchlist'
+                  : 'Add to Watchlist'}
+              </button>
             </div>
           </div>
         ))}
@@ -187,6 +299,27 @@ const Search = () => {
           totalPages={totalPages}
           onPageChange={setCurrentPage}
           ariaLabel="Search results pagination"
+        />
+      )}
+
+      {showWatchlistSelector && selectedWatchlistCoin && (
+        <WatchlistSelector
+          coin={selectedWatchlistCoin}
+          onClose={handleWatchlistSelectorClose}
+          onSuccess={handleWatchlistSelectorSuccess}
+        />
+      )}
+
+      {coinToRemove && removeWatchlist && (
+        <ConfirmationModal
+          title={`Remove ${coinToRemove.coin_name} from ${removeWatchlist.name}?`}
+          message={`This action cannot be undone. ${coinToRemove.coin_name} will be removed from ${removeWatchlist.name}.`}
+          confirmLabel="Remove"
+          cancelLabel="Cancel"
+          variant="danger"
+          loading={watchlistLoading}
+          onCancel={handleCancelRemoval}
+          onConfirm={handleConfirmRemoval}
         />
       )}
     </div>

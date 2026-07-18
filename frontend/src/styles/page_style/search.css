@@ -32,12 +32,12 @@
     border: 1px solid var(--color-border-dark);
     border-radius: 0.5rem;
     background-color: var(--color-surface-dark);
-    padding: 1rem 1.25rem;
+    padding: 1.25rem 1.25rem;
 }
 
 .search-result-layout {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(320px, 1.25fr);
+    grid-template-columns: 1fr;
     gap: 1.25rem;
     align-items: stretch;
 }
@@ -56,13 +56,34 @@
 
 .search-result-chart {
     display: flex;
+    flex: 1;
     flex-direction: column;
     gap: 0.5rem;
-    min-height: 240px;
-    padding: 0.75rem;
+    padding: 1rem;
     border-radius: 0.75rem;
     background: rgba(255, 255, 255, 0.02);
     border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.sparkline-chart {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0; /* required so flex children can shrink/grow inside a grid */
+    gap: 0.5rem;
+    padding: 0.5rem;
+}
+
+.search-item {
+    display: grid;
+    grid-template-columns: 420px minmax(0, 1fr);
+    gap: 1rem;
+    align-items: start;
+}
+
+.search-result-chart--fullwidth {
+    width: 100%;
+    max-width: 100%;
 }
 
 .chart-heading {
@@ -101,6 +122,10 @@
 }
 
 @media (max-width: 900px) {
+    .search-item {
+        grid-template-columns: 1fr;
+    }
+
     .search-result-layout {
         grid-template-columns: 1fr;
     }

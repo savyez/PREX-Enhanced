@@ -2,30 +2,40 @@ import { useEffect, useState } from 'react';
 import SparklineChart from './SparklineChart.jsx';
 import { chart_data } from '../utils/api.js';
 
-function CoinChart({ coin, height = 84 }) {
+const normalizeChartPoints = (points = []) =>
+    (points || [])
+        .map((point) => ({
+            ...point,
+            price: Number(point.price),
+        }))
+        .filter((point) => Number.isFinite(point.price));
+
+const getCoinChartKey = (coin) => coin?.ticker || coin?.coin_name || '';
+
+function CoinChart({ coin, height = 84, showAxes = false }) {
     const [chartData, setChartData] = useState([]);
-    const [loading, setLoading] = useState(true);
+    const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
 
     useEffect(() => {
         let isActive = true;
 
-        const loadChart = async () => {
-            if (!coin) {
-                return;
-            }
+        if (!coin) {
+            setChartData([]);
+            setLoading(false);
+            setError(null);
+            return () => {
+                isActive = false;
+            };
+        }
 
+        const loadChart = async () => {
             setLoading(true);
             setError(null);
 
             try {
-                const response = await chart_data(coin.coin_name || coin.ticker || '', 7);
-                const normalized = (response?.chart_data || [])
-                    .map((point) => ({
-                        ...point,
-                        price: Number(point.price),
-                    }))
-                    .filter((point) => Number.isFinite(point.price));
+                const response = await chart_data(getCoinChartKey(coin), 7);
+                const normalized = normalizeChartPoints(response?.chart_data);
 
                 if (isActive) {
                     setChartData(normalized);
@@ -47,23 +57,25 @@ function CoinChart({ coin, height = 84 }) {
         return () => {
             isActive = false;
         };
-    }, [coin?.coin_name, coin?.ticker]);
+    }, [coin]);
 
     if (!coin) {
         return null;
     }
 
     return (
-        <div className="coin-sparkline" aria-label={`${coin.coin_name} price trend`}>
-            <SparklineChart
-                data={chartData}
-                loading={loading}
-                error={error}
-                chartId={coin.ticker || coin.coin_name}
-                height={height}
-                compact
-            />
-        </div>
+        <SparklineChart
+            className="coin-sparkline"
+            ariaLabel={`${coin.coin_name || coin.ticker} price trend`}
+            data={chartData}
+            loading={loading}
+            error={error}
+            chartId={getCoinChartKey(coin)}
+            height={height}
+            compact={height <= 84}
+            showAxes={showAxes}
+            title="Price Trend"
+        />
     );
 }
 

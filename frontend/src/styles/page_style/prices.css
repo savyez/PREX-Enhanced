@@ -43,7 +43,6 @@
     display: flex;
     flex-direction: column;
     min-height: 58vh;
-    padding-bottom: 2.25rem;
 }
 
 .prices-content .pagination {
