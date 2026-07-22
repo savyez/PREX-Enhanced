@@ -99,8 +99,8 @@ class ApiIntegrationTests(APITestCase):
 
         response = self.client.get(reverse('verify_email', kwargs={'token': token}))
 
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.data['message'], 'Email verified successfully. You can now login to your account.')
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response['Location'], settings.EMAIL_VERIFICATION_SUCCESS_URL)
 
         user.refresh_from_db()
         self.assertTrue(user.email_confirmed)

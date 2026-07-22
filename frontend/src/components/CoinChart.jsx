@@ -20,19 +20,8 @@ function CoinChart({ coin, height = 84, showAxes = false, hidden = false }) {
     useEffect(() => {
         let isActive = true;
 
-        if (!coin) {
-            setChartData([]);
-            setLoading(false);
-            setError(null);
-            return () => {
-                isActive = false;
-            };
-        }
-        if (hidden) {
-            // If chart is hidden, don't fetch data.
-            setChartData([]);
-            setLoading(false);
-            setError(null);
+        if (!coin || hidden) {
+            // Hidden charts do not need to fetch trend data.
             return () => {
                 isActive = false;
             };
@@ -76,8 +65,8 @@ function CoinChart({ coin, height = 84, showAxes = false, hidden = false }) {
             className="coin-sparkline"
             ariaLabel={`${coin.coin_name || coin.ticker} price trend`}
             data={chartData}
-            loading={loading}
-            error={error}
+            loading={hidden ? false : loading}
+            error={hidden ? null : error}
             chartId={getCoinChartKey(coin)}
             height={height}
             compact={height <= 84}

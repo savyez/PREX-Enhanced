@@ -76,7 +76,12 @@ function SparklineChart({
             className={`sparkline-chart ${compact ? 'sparkline-chart--compact' : ''}${className ? ` ${className}` : ''}`}
             aria-label={ariaLabel}
         >
-            {title && <div className="chart-heading">{title}</div>}
+            {title && (
+                <>
+                    <div className="chart-heading">{title}</div>
+                    <div className="chart-remark">*Chart color indicates the net change in 7 days.</div>
+                </>
+            )}
 
             {formattedData.length > 1 ? (
                 <ResponsiveContainer width="100%" height={height}>

@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { useAuth } from './authContext';
 import { addCoinToWatchlist, getWatchlistItems, getWatchlists, removeCoinFromWatchlist } from '../utils/api';
@@ -59,10 +60,14 @@ export function WatchlistProvider({ children }) {
     } finally {
       setLoading(false);
     }
-  }, [authenticated, user?.id]);
+  }, [authenticated, user]);
 
   useEffect(() => {
-    refreshWatchlists();
+    const refreshTimer = window.setTimeout(() => {
+      refreshWatchlists();
+    }, 0);
+
+    return () => window.clearTimeout(refreshTimer);
   }, [refreshWatchlists]);
 
   const addCoin = useCallback(async (ticker, watchlistId) => {
@@ -72,7 +77,7 @@ export function WatchlistProvider({ children }) {
 
     await addCoinToWatchlist(user.id, watchlistId, ticker);
     await refreshWatchlists();
-  }, [refreshWatchlists, user?.id]);
+  }, [refreshWatchlists, user]);
 
   const removeCoin = useCallback(async (ticker, watchlistId) => {
     if (!user?.id) {
@@ -81,7 +86,7 @@ export function WatchlistProvider({ children }) {
 
     await removeCoinFromWatchlist(user.id, watchlistId, ticker);
     await refreshWatchlists();
-  }, [refreshWatchlists, user?.id]);
+  }, [refreshWatchlists, user]);
 
   const value = useMemo(() => ({
     watchlists,

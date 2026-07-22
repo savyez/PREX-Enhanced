@@ -93,6 +93,13 @@
     letter-spacing: 0.02em;
 }
 
+.chart-remark {
+    margin-top: -0.25rem;
+    color: var(--color-text-light);
+    font-size: 0.75rem;
+    font-style: italic;
+}
+
 .coin-sparkline-placeholder {
     display: flex;
     align-items: center;

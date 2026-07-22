@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { chart_data } from '../utils/api.js';
 
 const fetchWithTimeout = async (coinName, days, timeoutMs = 8000) => {
@@ -21,14 +21,14 @@ const normalizePoints = (points) =>
 export function useSparklineCache(items, keyField = 'coin_name') {
   const [cache, setCache] = useState({});
   const cacheRef = useRef({});
-  const getKey = (item) => {
+  const getKey = useCallback((item) => {
     const value = item?.[keyField];
     if (value === null || value === undefined) {
       return '';
     }
 
     return String(value).trim();
-  };
+  }, [keyField]);
 
   useEffect(() => {
     let isActive = true;
@@ -113,7 +113,7 @@ export function useSparklineCache(items, keyField = 'coin_name') {
     return () => {
       isActive = false;
     };
-  }, [items, keyField]);
+  }, [items, getKey]);
 
   useEffect(() => {
     cacheRef.current = cache;
