@@ -3,12 +3,15 @@ import { useState } from 'react';
 import Button from '../components/Button.jsx';
 import { updateUserProfile } from '../utils/api.js';
 import { useAuth } from '../context/authContext.jsx';
+import { useAlert } from '../context/alertContext.jsx';
 import '../styles/page_style/profile.css';
+
 
 function Profile() {
     const { user, updateUser } = useAuth();
     const [updateInfo, setUpdateInfo] = useState(false);
     const [formData, setFormData] = useState({});
+    const { showAlert } = useAlert();
 
     const handleChange = (event) => {
         const { name, value } = event.target;
@@ -51,7 +54,7 @@ function Profile() {
                     setUpdateInfo(false);
                 })
                 .catch((error) => {
-                    alert(error.message);
+                    showAlert(error.message || 'Failed to update profile.', 'error');
                 });
         }
     };

@@ -4,6 +4,7 @@ import Form from '../components/Form';
 import { login } from '../utils/api';
 import { useAuth } from '../context/authContext';
 import '../styles/page_style/login.css';
+import Alert from '@mui/material/Alert';
 
 const loginFields = [
   {
@@ -84,11 +85,7 @@ const Login = () => {
     return (
         <div className="login-page">
             <h2>Login to Your Account</h2>
-            {error && ( 
-              <p className="error-message">
-              {error}
-            </p>
-            )}
+            {error && <Alert severity="error">{error}</Alert>}
             <Form
             fields={loginFields}
             values={values}

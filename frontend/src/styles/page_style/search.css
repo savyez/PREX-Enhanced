@@ -105,6 +105,52 @@
     border: 1px dashed rgba(255, 255, 255, 0.1);
 }
 
+.sparkline-loading {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.75rem;
+    width: min(100%, 26rem);
+    color: var(--color-text-inverse);
+    font-weight: 700;
+}
+
+.sparkline-loading .MuiLinearProgress-root {
+    width: 100%;
+    border-radius: 999px;
+}
+
+.sparkline-error {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.75rem;
+    color: #fbbf24;
+    font-weight: 700;
+    text-align: center;
+}
+
+.sparkline-error-indicator {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2rem;
+    height: 2rem;
+    flex: 0 0 2rem;
+}
+
+.sparkline-warning-icon {
+    position: absolute;
+    width: 1.1rem;
+    height: 1.1rem;
+    fill: currentColor;
+}
+
+.sparkline-warning-icon--warning {
+    color: #f59e0b;
+}
+
 .search-result-chart .recharts-wrapper {
     overflow: visible;
 }

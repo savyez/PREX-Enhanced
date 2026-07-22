@@ -4,6 +4,9 @@ import CoinCard from '../components/CoinCard.jsx';
 import Pagination from '../components/Pagination.jsx';
 import { getCoins } from '../utils/api.js';
 import { useNavigate } from 'react-router-dom';
+import Alert from '@mui/material/Alert';
+import CircularProgress from '@mui/material/CircularProgress';
+
 
 function Prices() {
     const [coins, setCoins] = useState([]);
@@ -51,8 +54,15 @@ function Prices() {
             </section>
 
             <section className="prices-content">
-                {isLoading && <p>Loading prices...</p>}
-                {error && <p className="price-down">{error}</p>}
+                {isLoading && (
+                    <div className="prices-loading-container">
+                        <div className="prices-loading" role="status" aria-live="polite">
+                            <CircularProgress size={30} />
+                            <span>Loading...</span>
+                        </div>
+                    </div>
+                )}
+                {error && <Alert severity="error">{error}</Alert>}
 
                 <section className="prices-grid" aria-label="Coin prices">
                     {coins.map((coin) => (

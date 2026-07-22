@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { apiAuth } from '../utils/api';
+import Alert from '@mui/material/Alert';
 import '../styles/modal_style/create-watchlist-modal.css';
 
 function CreateWatchlistModal({ onClose, onSuccess }) {
@@ -60,7 +61,7 @@ function CreateWatchlistModal({ onClose, onSuccess }) {
             autoFocus
           />
 
-          {error && <p className="create-watchlist-error">{error}</p>}
+          {error && <Alert severity="error">{error}</Alert>}
         </div>
 
         <div className="create-watchlist-actions">

@@ -8,6 +8,18 @@ import {
     XAxis,
     YAxis,
 } from 'recharts';
+import CircularProgress from '@mui/material/CircularProgress';
+import LinearProgress from '@mui/material/LinearProgress';
+
+const WarningIcon = ({ color = 'warning' }) => (
+    <svg
+        className={`sparkline-warning-icon sparkline-warning-icon--${color}`}
+        viewBox="0 0 24 24"
+        aria-hidden="true"
+    >
+        <path d="M12 2 1 21h22L12 2Zm0 4.2L19.5 19h-15L12 6.2ZM11 10v4h2v-4h-2Zm0 5v2h2v-2h-2Z" />
+    </svg>
+);
 
 function SparklineChart({
     data = [],
@@ -58,12 +70,6 @@ function SparklineChart({
 
         return last === first ? '#94a3b8' : last > first ? '#22c55e' : '#ef4444';
     }, [formattedData]);
-
-    const placeholderText = loading
-        ? 'Loading trend...'
-        : error
-        ? 'Trend unavailable'
-        : 'No trend data';
 
     return (
         <div
@@ -188,7 +194,22 @@ function SparklineChart({
                 </ResponsiveContainer>
             ) : (
                 <div className="coin-sparkline-placeholder">
-                    {placeholderText}
+                    {loading ? (
+                        <div className="sparkline-loading" role="status" aria-live="polite">
+                            <LinearProgress color="primary" />
+                            <span>Loading...</span>
+                        </div>
+                    ) : error ? (
+                        <div className="sparkline-error" role="alert">
+                            <span className="sparkline-error-indicator">
+                                <CircularProgress color="warning" size={32} variant="determinate" value={100} />
+                                <WarningIcon color="warning" />
+                            </span>
+                            <span>{error}</span>
+                        </div>
+                    ) : (
+                        'No trend data'
+                    )}
                 </div>
             )}
         </div>

@@ -39,6 +39,34 @@
     align-items: stretch;
 }
 
+.prices-loading-container {
+    flex: 1;
+    min-height: 48vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.prices-loading {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.8rem;
+    padding: 0.55rem 0.95rem;
+    color: #ffffff;
+    background: #0878d1;
+    border: 1px solid #0b8be8;
+    border-radius: 7px;
+    font-size: 0.95rem;
+    font-weight: 700;
+    box-shadow: 0 4px 12px rgba(8, 120, 209, 0.25);
+}
+
+.prices-loading .MuiCircularProgress-root {
+    color: #075ca8;
+    flex: 0 0 auto;
+}
+
 .prices-content {
     display: flex;
     flex-direction: column;
@@ -156,6 +184,10 @@
 
     .prices-header h1 {
         font-size: 2.1rem;
+    }
+
+    .prices-loading-container {
+        min-height: 42vh;
     }
 }
 

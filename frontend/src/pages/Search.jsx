@@ -6,7 +6,9 @@ import { lazy, Suspense, useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../context/authContext.jsx';
 import { useWatchlist } from '../context/watchlistContext.jsx';
+import { useAlert } from '../context/alertContext.jsx';
 import '../styles/page_style/search.css';
+
 
 const CoinChart = lazy(() => import('../components/CoinChart.jsx'));
 const WatchlistSelector = lazy(() => import('../components/WatchlistSelector.jsx'));
@@ -86,6 +88,7 @@ const Search = () => {
   const [showWatchlistSelector, setShowWatchlistSelector] = useState(false);
   const [coinToRemove, setCoinToRemove] = useState(null);
   const [removeWatchlist, setRemoveWatchlist] = useState(null);
+  const { showAlert } = useAlert();
   const resultsPerPage = 10;
   const displayedResults = coinId ? searchResults : [];
   const displayedError = coinId ? error : null;
@@ -140,7 +143,7 @@ const Search = () => {
 
   const handleWatchlistButtonClick = async (coin) => {
     if (!authenticated) {
-      alert('Please log in to manage your watchlist.');
+      showAlert('Please log in to manage your watchlist.', 'warning');
       return;
     }
 
@@ -163,9 +166,9 @@ const Search = () => {
     try {
       await removeCoin(coinToRemove.ticker, removeWatchlist.id);
       await refreshWatchlists();
-      alert(`${coinToRemove.coin_name} removed from ${removeWatchlist.name}.`);
+      showAlert(`${coinToRemove.coin_name} removed from ${removeWatchlist.name}.`, 'success');
     } catch (err) {
-      alert(err.message || 'Failed to remove from watchlist.');
+      showAlert(err.message || 'Failed to remove from watchlist.', 'error');
     } finally {
       setWatchlistLoadingLocal(false);
       handleCancelRemoval();
@@ -181,7 +184,7 @@ const Search = () => {
     setShowWatchlistSelector(false);
     await refreshWatchlists();
     if (selectedWatchlistCoin) {
-      alert(`${selectedWatchlistCoin.coin_name} added to your watchlist.`);
+      showAlert(`${selectedWatchlistCoin.coin_name} added to your watchlist.`, 'success');
     }
     setSelectedWatchlistCoin(null);
   };
@@ -195,9 +198,9 @@ const Search = () => {
     try {
       await removeCoin(selectedWatchlistCoin.ticker, membership.watchlist_id);
       await refreshWatchlists();
-      alert(`${selectedWatchlistCoin.coin_name} removed from ${membership.watchlist_name}.`);
+      showAlert(`${selectedWatchlistCoin.coin_name} removed from ${membership.watchlist_name}.`, 'success');
     } catch (err) {
-      alert(err.message || 'Failed to remove from watchlist.');
+      showAlert(err.message || 'Failed to remove from watchlist.', 'error');
     } finally {
       setWatchlistLoadingLocal(false);
     }

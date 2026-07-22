@@ -1,8 +1,10 @@
 import { lazy, Suspense, useState } from 'react';
 import { useAuth } from '../context/authContext.jsx';
 import { useWatchlist } from '../context/watchlistContext.jsx';
+import { useAlert } from '../context/alertContext.jsx';
 import Card from './Card.jsx';
 import '../styles/component_style/coinCard.css';
+
 
 const CoinChart = lazy(() => import('./CoinChart.jsx'));
 const WatchlistSelector = lazy(() => import('./WatchlistSelector.jsx'));
@@ -12,6 +14,7 @@ function CoinCard({ coin, rank, onCardClick, showChart = false }) {
     const { membershipMap, loading, removeCoin } = useWatchlist();
     const [watchlistLoading, setWatchlistLoading] = useState(false);
     const [showWatchlistSelector, setShowWatchlistSelector] = useState(false);
+    const { showAlert } = useAlert();
     const memberWatchlists = membershipMap[coin?.ticker] || [];
 
     const price = Number(coin.price).toLocaleString();
@@ -27,7 +30,7 @@ function CoinCard({ coin, rank, onCardClick, showChart = false }) {
         event.stopPropagation();
 
         if (!authenticated) {
-            alert('Please log in to manage your watchlist');
+            showAlert('Please log in to manage your watchlist.', 'warning');
             return;
         }
 
@@ -42,9 +45,9 @@ function CoinCard({ coin, rank, onCardClick, showChart = false }) {
         try {
             setWatchlistLoading(true);
             await removeCoin(coin.ticker, membership.watchlist_id);
-            alert(`${coin.coin_name} removed from ${membership.watchlist_name}`);
+            showAlert(`${coin.coin_name} removed from ${membership.watchlist_name}.`, 'success');
         } catch (err) {
-            alert(err.message || 'Failed to remove from watchlist');
+            showAlert(err.message || 'Failed to remove from watchlist.', 'error');
         } finally {
             setWatchlistLoading(false);
         }
@@ -56,7 +59,7 @@ function CoinCard({ coin, rank, onCardClick, showChart = false }) {
 
     const handleWatchlistSelectorSuccess = async () => {
         setShowWatchlistSelector(false);
-        alert(`${coin.coin_name} added to your watchlist`);
+        showAlert(`${coin.coin_name} added to your watchlist.`, 'success');
     };
 
     return (

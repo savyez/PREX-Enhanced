@@ -1,3 +1,5 @@
+"""Pagination utilities for the API app."""
+
 from math import ceil
 from rest_framework.response import Response
 

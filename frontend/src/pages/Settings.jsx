@@ -5,6 +5,7 @@ import Form from '../components/Form.jsx';
 import { requestPasswordReset } from '../utils/api.js';
 import { getUser, isAuthenticated, clearAuth } from '../utils/auth.js';
 import '../styles/page_style/settings.css';
+import Alert from '@mui/material/Alert';
 
 function Settings() {
   const navigate = useNavigate();
@@ -88,16 +89,16 @@ function Settings() {
               <p className="settings-help">
                 Send yourself a reset link if you want to change your password.
               </p>
-              <Form
+                {error && <Alert severity="error">{error}</Alert>}
+                {message && <Alert severity="success">{message}</Alert>}
+                <Form
                 fields={resetFields}
                 values={values}
                 onChange={handleChange}
                 onSubmit={handlePasswordReset}
                 submitLabel={loading ? 'Sending...' : 'Send Reset Email'}
                 isSubmitting={loading}
-                error={error}
-                footer={message}
-              />
+                />
             </section>
 
             <section className="settings-card">

@@ -5,8 +5,11 @@ import CreateWatchlistModal from '../modals/CreateWatchlistModal.jsx';
 import ConfirmationModal from '../modals/ConfirmationModal.jsx';
 import { getWatchlistItems, getWatchlists, deleteWatchlist } from '../utils/api.js';
 import { useAuth } from '../context/authContext.jsx';
+import { useAlert } from '../context/alertContext.jsx';
 import { useNavigate } from 'react-router-dom';
 import { removeCoinFromWatchlist } from '../utils/api.js';
+import Alert from '@mui/material/Alert';
+
 
 const formatPriceChange = (priceChange) => {
     const numericChange = Number(priceChange);
@@ -40,6 +43,7 @@ function Watchlist() {
     const [deleteLoading, setDeleteLoading] = useState(false);
     const [coinToRemove, setCoinToRemove] = useState(null);
     const [removeLoading, setRemoveLoading] = useState(false);
+    const { showAlert } = useAlert();
 
     const navigate = useNavigate();
 
@@ -101,6 +105,7 @@ function Watchlist() {
         setWatchlists([...watchlists, newWatchlist]);
         // Select the new watchlist
         setSelectedWatchlistId(String(newWatchlist.id));
+        showAlert(`Watchlist ${newWatchlist.name} created successfully.`, 'success');
     };
 
     const handleDeleteWatchlist = async () => {
@@ -130,6 +135,7 @@ function Watchlist() {
                 }
             }
             setWatchlistToDelete(null);
+            showAlert(`Watchlist ${watchlistToDelete.name} deleted successfully.`, 'success');
         } catch (err) {
             setError(err.message);
         } finally {
@@ -157,6 +163,7 @@ function Watchlist() {
             );
 
             setCoinToRemove(null);
+            showAlert('Coin removed from the watchlist.', 'success');
 
         } catch (err) {
             setError(err.message);
@@ -168,7 +175,7 @@ function Watchlist() {
     return (
         <main className="watchlist-page">
             {loading && <p className="watchlist-status">Loading watchlist...</p>}
-            {error && <p className="watchlist-error">{error}</p>}
+            {error && <Alert severity="error" onClose={() => setError('')}>{error}</Alert>}
 
             {!loading && !error && !user?.id ? (
                 <div className="empty-watchlist">

@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useWatchlist } from '../context/watchlistContext';
+import { useAlert } from '../context/alertContext';
 import '../styles/component_style/watchlist-selector.css';
 
 function WatchlistSelector({ coin, onClose, onSuccess, existingMemberships = [], onRemove }) {
   const { watchlists, loading, error, addCoin } = useWatchlist();
   const [selectedWatchlistId, setSelectedWatchlistId] = useState('');
-  const [actionError, setActionError] = useState('');
+  const { showAlert } = useAlert();
   const existingWatchlistIds = useMemo(
     () => new Set((existingMemberships || []).map((membership) => String(membership.watchlist_id))),
     [existingMemberships]
@@ -13,24 +14,33 @@ function WatchlistSelector({ coin, onClose, onSuccess, existingMemberships = [],
 
   useEffect(() => {
     if (watchlists.length === 0) {
-      setSelectedWatchlistId('');
       return;
     }
 
-    setSelectedWatchlistId((currentSelection) => {
-      const stillExists = watchlists.some((watchlist) => String(watchlist.id) === currentSelection);
-      if (stillExists) {
-        return currentSelection;
-      }
+    const selectionTimer = window.setTimeout(() => {
+      setSelectedWatchlistId((currentSelection) => {
+        const stillExists = watchlists.some((watchlist) => String(watchlist.id) === currentSelection);
+        if (stillExists) {
+          return currentSelection;
+        }
 
-      const firstExistingMembership = watchlists.find((watchlist) => existingWatchlistIds.has(String(watchlist.id)));
-      return String(firstExistingMembership?.id || watchlists[0].id);
-    });
+        const firstExistingMembership = watchlists.find((watchlist) => existingWatchlistIds.has(String(watchlist.id)));
+        return String(firstExistingMembership?.id || watchlists[0].id);
+      });
+    }, 0);
+
+    return () => window.clearTimeout(selectionTimer);
   }, [watchlists, existingWatchlistIds]);
+
+  useEffect(() => {
+    if (error) {
+      showAlert(error, 'error');
+    }
+  }, [error, showAlert]);
 
   const handleAdd = async () => {
     if (!selectedWatchlistId) {
-      setActionError('Please select a watchlist');
+      showAlert('Please select a watchlist.', 'warning');
       return;
     }
 
@@ -39,23 +49,22 @@ function WatchlistSelector({ coin, onClose, onSuccess, existingMemberships = [],
     );
 
     if (alreadyInSelectedWatchlist) {
-      setActionError('This coin is already in the selected watchlist.');
+      showAlert('This coin is already in the selected watchlist.', 'warning');
       return;
     }
 
     try {
-      setActionError('');
       await addCoin(coin.ticker, selectedWatchlistId);
       onSuccess?.();
       onClose();
     } catch (err) {
-      setActionError(err.message || 'Failed to add coin to watchlist');
+      showAlert(err.message || 'Failed to add coin to watchlist.', 'error');
     }
   };
 
   const handleRemove = async () => {
     if (!selectedWatchlistId) {
-      setActionError('Please select a watchlist');
+      showAlert('Please select a watchlist.', 'warning');
       return;
     }
 
@@ -64,16 +73,15 @@ function WatchlistSelector({ coin, onClose, onSuccess, existingMemberships = [],
     );
 
     if (!membership) {
-      setActionError('This coin is not in the selected watchlist.');
+      showAlert('This coin is not in the selected watchlist.', 'warning');
       return;
     }
 
     try {
-      setActionError('');
       await onRemove?.(membership);
       onClose();
     } catch (err) {
-      setActionError(err.message || 'Failed to remove coin from watchlist');
+      showAlert(err.message || 'Failed to remove coin from watchlist.', 'error');
     }
   };
 
@@ -86,8 +94,6 @@ function WatchlistSelector({ coin, onClose, onSuccess, existingMemberships = [],
         </div>
 
         {loading && <p className="watchlist-selector-loading">Loading watchlists...</p>}
-        {(error || actionError) && <p className="watchlist-selector-error">{actionError || error}</p>}
-
         {!loading && watchlists.length === 0 && (
           <p className="watchlist-selector-empty">No watchlists found. Create one first.</p>
         )}
@@ -107,11 +113,12 @@ function WatchlistSelector({ coin, onClose, onSuccess, existingMemberships = [],
                       checked={String(watchlist.id) === selectedWatchlistId}
                       onChange={(e) => {
                         setSelectedWatchlistId(e.target.value);
-                        setActionError('');
+                        if (isInWatchlist) {
+                          showAlert('This coin is already in the selected watchlist.', 'info');
+                        }
                       }}
                     />
                     <span>{watchlist.name}</span>
-                    {isInWatchlist && <small>Already contains this coin</small>}
                   </label>
                 );
               })}

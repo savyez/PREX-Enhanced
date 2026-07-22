@@ -3,6 +3,7 @@ import { lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { AuthProvider } from '../context/authContext';
 import { WatchlistProvider } from '../context/watchlistContext';
+import { AlertProvider } from '../context/alertContext';
 
 // Components
 import AppContent from './AppContent';
@@ -25,8 +26,9 @@ function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
-        <WatchlistProvider>
-          <AppContent>
+        <AlertProvider>
+          <WatchlistProvider>
+            <AppContent>
             <Suspense fallback={<main className="app-loading">Loading...</main>}>
               <Routes>
                 <Route path="/" element={<Home />} />
@@ -45,8 +47,9 @@ function App() {
                 <Route path="/logout" element={<Logout />} />
               </Routes>
             </Suspense>
-          </AppContent>
-        </WatchlistProvider>
+            </AppContent>
+          </WatchlistProvider>
+        </AlertProvider>
       </AuthProvider>
     </BrowserRouter>
   );

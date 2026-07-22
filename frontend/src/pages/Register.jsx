@@ -3,6 +3,7 @@ import '../styles/page_style/register.css';
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { register } from '../utils/api';
+import Alert from '@mui/material/Alert';
 
 const Register = () => {
     const navigate = useNavigate();
@@ -105,7 +106,7 @@ const registerFields = [
         return (
         <div className='register'>
             <h1 className='register-title'>Create an account</h1>
-            {error && <p className="error-message">{error}</p>}
+            {error && <Alert severity="error">{error}</Alert>}
             <Form 
                 type='register'
                 fields={registerFields}
