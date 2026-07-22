@@ -1,39 +1,42 @@
--- SQL schema for the cryptocurrency watchlist application.
--- This schema defines the tables for users, coins, watchlists, and watchlist items.
+-- PREX application schema for PostgreSQL.
+--
+-- This file documents the tables owned by the api models. The authoritative
+-- schema is Django's migration history; run `python manage.py migrate` when
+-- creating or updating a database. Django also creates framework tables for
+-- permissions, sessions, admin logs, and Simple JWT token blacklisting.
 
--- The users table stores information about each user, including their username, date of birth, email, 
--- password hash, email confirmation status, and timestamps for when the account was created and last updated.
 CREATE TABLE users (
     id UUID PRIMARY KEY,
+    first_name VARCHAR(50) NOT NULL DEFAULT '',
+    last_name VARCHAR(50) NOT NULL DEFAULT '',
     username VARCHAR(150) UNIQUE NOT NULL,
     dob DATE NOT NULL,
-    email VARCHAR(255) UNIQUE NOT NULL,
+    email VARCHAR(254) UNIQUE NOT NULL,
     password_hash VARCHAR(255) NOT NULL,
     email_confirmed BOOLEAN NOT NULL DEFAULT FALSE,
-    created_at TIMESTAMP NOT NULL,
-    updated_at TIMESTAMP NOT NULL
+    is_staff BOOLEAN NOT NULL DEFAULT FALSE,
+    is_active BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at TIMESTAMPTZ NOT NULL,
+    updated_at TIMESTAMPTZ NOT NULL
 );
 
--- The coins table stores information about each cryptocurrency, 
--- including its ticker, name, current price, market volume, and timestamps for when it was last updated and created.
 CREATE TABLE coins (
     ticker VARCHAR(16) PRIMARY KEY,
     coin_name VARCHAR(100) UNIQUE NOT NULL,
     price NUMERIC(20, 8) NOT NULL,
+    market_cap_rank INTEGER NULL,
     market_volume NUMERIC(24, 2) NOT NULL,
-    last_updated_at TIMESTAMP NOT NULL,
-    created_at TIMESTAMP NOT NULL
+    last_updated_at TIMESTAMPTZ NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL,
+    price_change_24h NUMERIC(10, 3) NOT NULL DEFAULT 0
 );
 
-
--- The watchlists table represents a user's collection of coins they want to track. 
---Each watchlist has a unique name per user and is associated with a user through a foreign key.
 CREATE TABLE watchlists (
     id BIGSERIAL PRIMARY KEY,
     user_id UUID NOT NULL,
     name VARCHAR(100) NOT NULL,
-    created_at TIMESTAMP NOT NULL,
-    updated_at TIMESTAMP NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL,
+    updated_at TIMESTAMPTZ NOT NULL,
 
     CONSTRAINT fk_watchlists_user
         FOREIGN KEY (user_id)
@@ -44,15 +47,13 @@ CREATE TABLE watchlists (
         UNIQUE (user_id, name)
 );
 
+CREATE INDEX watchlists_user_id_idx ON watchlists(user_id);
 
--- The watchlist_items table represents the many-to-many relationship between watchlists and coins. 
--- Each entry in this table indicates that a specific coin is part of a specific watchlist, along with the timestamp of when it was added. 
---The table includes foreign keys to both the watchlists and coins tables, ensuring referential integrity.
 CREATE TABLE watchlist_items (
     id BIGSERIAL PRIMARY KEY,
     watchlist_id BIGINT NOT NULL,
     ticker VARCHAR(16) NOT NULL,
-    added_at TIMESTAMP NOT NULL,
+    added_at TIMESTAMPTZ NOT NULL,
 
     CONSTRAINT fk_watchlist_items_watchlist
         FOREIGN KEY (watchlist_id)
@@ -67,3 +68,6 @@ CREATE TABLE watchlist_items (
     CONSTRAINT unique_coin_per_watchlist
         UNIQUE (watchlist_id, ticker)
 );
+
+CREATE INDEX watchlist_items_watchlist_id_idx ON watchlist_items(watchlist_id);
+CREATE INDEX watchlist_items_ticker_idx ON watchlist_items(ticker);
