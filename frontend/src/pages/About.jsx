@@ -6,21 +6,22 @@ const About = () => {
             <main className="about-main">
                 <section className="about-hero">
                     <div className="about-content">
-                        <span className="about-eyebrow">About Us</span>
-                        <h1>Creating Better Experiences For Every Visitor</h1>
+                        <span className="about-eyebrow">About PREX</span>
+                        <h1>Understand the market. Organize your watchlist.</h1>
                         <p>
-                            Welcome to our website. We are dedicated to delivering helpful,
-                            high-quality content and services with a smooth experience from
-                            the first click to the final detail.
+                            PREX is a cryptocurrency tracking app that brings current market
+                            data, coin search, seven-day price trends, and personal watchlists
+                            into one focused workspace.
                         </p>
                     </div>
 
                     <aside className="about-panel">
-                        <h2>What Drives Us</h2>
+                        <h2>What PREX helps you do</h2>
                         <ul>
-                            <li>Useful content that is easy to understand</li>
-                            <li>Reliable service shaped around real user needs</li>
-                            <li>A friendly experience that keeps improving</li>
+                            <li>Browse paginated cryptocurrency market data</li>
+                            <li>Search coins by name or ticker and view seven-day trends</li>
+                            <li>Create watchlists and manage coin membership across them</li>
+                            <li>Keep your account protected with email verification and session handling</li>
                         </ul>
                     </aside>
                 </section>

@@ -21,11 +21,6 @@ const loginFields = [
     required: true,
     autoComplete: 'current-password',
   },
-  {
-    name: 'rememberMe',
-    label: 'Remember me',
-    type: 'checkbox',
-  },
 ];
 
 const Login = () => {
@@ -34,7 +29,6 @@ const Login = () => {
     username: '',
     email: '',
     password: '',
-    rememberMe: false,
   });
   
   const [error, setError] = useState("");
