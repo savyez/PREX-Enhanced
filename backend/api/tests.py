@@ -246,6 +246,24 @@ class ApiIntegrationTests(APITestCase):
 
         self.assertFalse(OutstandingToken.objects.filter(user_id=user.id).exists())
 
+    def test_deleting_user_removes_watchlists_and_items(self):
+        user = self.create_user('watchlist-owner', 'watchlist-owner@example.com', 'Password123!')
+        coin = Coin.objects.create(
+            ticker='BTC',
+            coin_name='Bitcoin',
+            price='64079.00000000',
+            market_volume='17988848511.00',
+            last_updated_at=timezone.now(),
+        )
+        watchlist = Watchlist.objects.create(user=user, name='Long Term')
+        item = WatchlistItem.objects.create(watchlist=watchlist, ticker=coin)
+
+        user.delete()
+
+        self.assertFalse(Watchlist.objects.filter(id=watchlist.id).exists())
+        self.assertFalse(WatchlistItem.objects.filter(id=item.id).exists())
+        self.assertTrue(Coin.objects.filter(ticker=coin.ticker).exists())
+
     @patch('api.views.smtplib.SMTP')
     @patch('api.views.smtplib.SMTP_SSL')
     def test_reset_password_flow_updates_password(self, smtp_ssl_mock, smtp_mock):

@@ -6,13 +6,17 @@ from django.shortcuts import redirect
 from django.core.cache import cache
 from django.db.models import Q
 from .models import Coin, User, Watchlist, WatchlistItem
-from .serializers import UserSerializer, CoinSerializer, WatchlistSerializer, WatchlistItemDetailSerializer
+from .serializers import (
+    UserSerializer, CoinSerializer, WatchlistSerializer, WatchlistItemDetailSerializer,
+    RegisterRequestSerializer, LoginRequestSerializer, ProfileUpdateRequestSerializer,
+    EmailRequestSerializer, PasswordResetConfirmRequestSerializer, RefreshTokenRequestSerializer,
+    WatchlistNameRequestSerializer, WatchlistCoinRequestSerializer, UserScopedRequestSerializer,
+)
 from django.core import signing
 from django.urls import reverse
 from django.conf import settings
 from django.utils import timezone
 from email.message import EmailMessage
-from django.core.exceptions import ValidationError
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.decorators import api_view, permission_classes
@@ -153,6 +157,22 @@ def parse_request_data(request):
         raise ValueError('Request body must be valid JSON.')
 
     return request.data
+
+
+def validate_request_data(request, serializer_class):
+    try:
+        data = parse_request_data(request)
+    except ValueError as error:
+        return None, build_error_response(str(error))
+
+    serializer = serializer_class(data=data)
+    if not serializer.is_valid():
+        messages = []
+        for field_errors in serializer.errors.values():
+            messages.extend(str(error) for errors in field_errors for error in (errors if isinstance(errors, list) else [errors]))
+        return None, build_error_response(' '.join(messages))
+
+    return serializer.validated_data, None
 
 
 def build_user_update_payload(data):
@@ -353,18 +373,14 @@ def get_chart_data(request, coin_id=None):
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def register_user(request):
-    try:
-        data = parse_request_data(request)
-    except ValueError as error:
-        return build_error_response(str(error))
+    data, error_response = validate_request_data(request, RegisterRequestSerializer)
+    if error_response:
+        return error_response
 
-    username = normalize_username_value(data.get('username'))
-    dob = data.get('dob')
-    email = normalize_email_value(data.get('email'))
-    password = data.get('password')
-
-    if not all([username, dob, email, password]):
-        return build_error_response('username, dob, email, and password are required.')
+    username = normalize_username_value(data['username'])
+    dob = data['dob']
+    email = normalize_email_value(data['email'])
+    password = data['password']
 
     existing_user = User.objects.filter(email=email).first()
 
@@ -395,11 +411,6 @@ def register_user(request):
 
     if User.objects.filter(username=username).exists():
         return build_error_response('Username already exists.')
-
-    try:
-        validate_password(password)
-    except ValidationError as e:
-        return build_error_response(' '.join(e.messages))
 
     # Create inactive user with verified password (user must verify email to activate)
     User.objects.create_user(
@@ -444,11 +455,11 @@ def update_user(request, user_id):
     if permission_error:
         return permission_error
 
-    try:
-        data = parse_request_data(request)
-        payload = build_user_update_payload(data)
-    except ValueError as error:
-        return build_error_response(str(error))
+    data, error_response = validate_request_data(request, ProfileUpdateRequestSerializer)
+    if error_response:
+        return error_response
+
+    payload = build_user_update_payload(data)
 
     if not payload:
         return build_error_response('Please provide at least one field to update.')
@@ -519,16 +530,12 @@ def verify_email(request, token):
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def user_login(request):
-    try:
-        data = parse_request_data(request)
-    except ValueError as error:
-        return build_error_response(str(error))
+    data, error_response = validate_request_data(request, LoginRequestSerializer)
+    if error_response:
+        return error_response
 
-    email = normalize_email_value(data.get('email'))
-    password = data.get('password')
-
-    if not all([email, password]):
-        return build_error_response('email and password are required for login.')
+    email = normalize_email_value(data['email'])
+    password = data['password']
 
     user = User.objects.filter(email=email).first()
 
@@ -574,15 +581,11 @@ def current_user(request):
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def reset_password(request):
-    try:
-        data = parse_request_data(request)
-    except ValueError as error:
-        return build_error_response(str(error))
+    data, error_response = validate_request_data(request, EmailRequestSerializer)
+    if error_response:
+        return error_response
 
-    email = normalize_email_value(data.get('email'))
-
-    if not email:
-        return build_error_response('Email is required to reset password.')
+    email = normalize_email_value(data['email'])
 
     user = User.objects.filter(email=email).first()
     if not user:
@@ -614,10 +617,9 @@ def reset_password(request):
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def reset_password_confirm(request, token):
-    try:
-        data = parse_request_data(request)
-    except ValueError as error:
-        return build_error_response(str(error))
+    data, error_response = validate_request_data(request, PasswordResetConfirmRequestSerializer)
+    if error_response:
+        return error_response
 
     try:
         payload = get_signed_payload(
@@ -632,19 +634,7 @@ def reset_password_confirm(request, token):
     if not user:
         return build_error_response('Invalid password reset link.')
 
-    new_password = data.get('new_password')
-    confirm_new_password = data.get('confirm_new_password')
-
-    if not new_password or not confirm_new_password:
-        return build_error_response('New password and confirm new password are required.')
-
-    if new_password != confirm_new_password:
-        return build_error_response('New password and confirm new password do not match.')
-
-    try:
-        validate_password(new_password)
-    except ValidationError as e:
-        return build_error_response(' '.join(e.messages))
+    new_password = data['new_password']
 
     if user.check_password(new_password):
         return build_error_response('New password cannot be the same as the old password.')
@@ -664,10 +654,11 @@ def reset_password_confirm(request, token):
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def user_logout(request):
-    refresh_token = request.data.get('refresh_token')
+    data, error_response = validate_request_data(request, RefreshTokenRequestSerializer)
+    if error_response:
+        return error_response
 
-    if not refresh_token:
-        return build_error_response('Refresh token is required.')
+    refresh_token = data['refresh_token']
 
     try:
         token = RefreshToken(refresh_token)
@@ -728,11 +719,11 @@ def user_watchlists(request, user_id):
 def create_watchlist(request):
     user = request.user
 
-    watchlist_name = request.data.get('name')
-    if not watchlist_name:
-        return build_error_response('Watchlist name is required.')
+    data, error_response = validate_request_data(request, WatchlistNameRequestSerializer)
+    if error_response:
+        return error_response
 
-    watchlist_name = watchlist_name.strip()
+    watchlist_name = data['name']
 
     if user.watchlists.filter(name=watchlist_name).exists():
         return build_error_response('A watchlist with this name already exists.', status.HTTP_409_CONFLICT)
@@ -753,7 +744,11 @@ def create_watchlist(request):
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def add_coin_to_watchlist(request):
-    user_id = request.data.get('user_id')
+    data, error_response = validate_request_data(request, WatchlistCoinRequestSerializer)
+    if error_response:
+        return error_response
+
+    user_id = data['user_id']
     if str(request.user.id) != str(user_id):
         return build_error_response(
             'You do not have permission to modify this user\'s watchlists.',
@@ -765,19 +760,13 @@ def add_coin_to_watchlist(request):
     if not user:
         return build_error_response('User not found.', status.HTTP_404_NOT_FOUND)
     
-    watchlist_id = request.data.get('watchlist_id')
-    if not watchlist_id:
-        return build_error_response('Watchlist ID is required to add a coin to the watchlist.')
+    watchlist_id = data['watchlist_id']
     
     watchlist = user.watchlists.filter(id=watchlist_id).first()
     if not watchlist:
         return build_error_response('Watchlist not found.', status.HTTP_404_NOT_FOUND)
     
-    ticker = request.data.get('ticker')
-    if ticker:
-        ticker = ticker.upper()
-    else:
-        return build_error_response('Ticker is required to add a coin to the watchlist.')
+    ticker = data['ticker'].upper()
     
     coin = Coin.objects.filter(ticker=ticker).first()
     if not coin:
@@ -798,7 +787,11 @@ def add_coin_to_watchlist(request):
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def remove_coin_from_watchlist(request):
-    user_id = request.data.get('user_id')
+    data, error_response = validate_request_data(request, WatchlistCoinRequestSerializer)
+    if error_response:
+        return error_response
+
+    user_id = data['user_id']
     if str(request.user.id) != str(user_id):
         return build_error_response(
             'You do not have permission to modify this user\'s watchlists.',
@@ -810,18 +803,13 @@ def remove_coin_from_watchlist(request):
     if not user:
         return build_error_response('User not found.', status.HTTP_404_NOT_FOUND)
     
-    watchlist_id = request.data.get('watchlist_id')
-    if not watchlist_id:
-        return build_error_response('Watchlist ID is required to remove a coin from the watchlist.')
+    watchlist_id = data['watchlist_id']
     
     watchlist = user.watchlists.filter(id=watchlist_id).first()
     if not watchlist:
         return build_error_response('Watchlist not found.', status.HTTP_404_NOT_FOUND)
     
-    ticker = request.data.get('ticker')
-    if not ticker:
-        return build_error_response('Ticker is required to remove a coin from the watchlist.')
-    ticker = ticker.upper()
+    ticker = data['ticker'].upper()
     
     coin = Coin.objects.filter(ticker=ticker).first()
     if not coin:
@@ -898,7 +886,11 @@ def coin_watchlist_membership(request, ticker):
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def delete_watchlist(request, watchlist_id):
-    user_id = request.data.get('user_id')
+    data, error_response = validate_request_data(request, UserScopedRequestSerializer)
+    if error_response:
+        return error_response
+
+    user_id = data['user_id']
     if str(request.user.id) != str(user_id):
         return build_error_response(
             'You do not have permission to modify this user\'s watchlists.',
