@@ -18,6 +18,8 @@ Protected endpoints additionally require:
 Authorization: Bearer <access-token>
 ```
 
+Interactive documentation is available at `/api/v1/docs/` (Swagger UI) and `/api/v1/redoc/` (ReDoc). The raw OpenAPI document is served at `/api/v1/schema/`.
+
 Error responses generally use this shape:
 
 ```json

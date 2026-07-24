@@ -101,3 +101,62 @@ class WatchlistItemSerializer(serializers.ModelSerializer):
     class Meta:
         model = WatchlistItem
         fields = ['id', 'watchlist', 'ticker', 'added_at']
+
+
+class ErrorResponseSerializer(serializers.Serializer):
+    error = serializers.CharField()
+
+
+class MessageResponseSerializer(serializers.Serializer):
+    success = serializers.BooleanField(required=False)
+    message = serializers.CharField()
+
+
+class TokenResponseSerializer(serializers.Serializer):
+    status = serializers.IntegerField()
+    success = serializers.BooleanField()
+    message = serializers.CharField()
+    access_token = serializers.CharField()
+    refresh_token = serializers.CharField()
+    user = UserSerializer()
+
+
+class WatchlistResponseSerializer(serializers.Serializer):
+    success = serializers.BooleanField()
+    message = serializers.CharField(required=False)
+    watchlist = WatchlistSerializer()
+
+
+class WatchlistListResponseSerializer(serializers.Serializer):
+    success = serializers.BooleanField()
+    message = serializers.CharField(required=False)
+    watchlists = WatchlistSerializer(many=True)
+
+
+class WatchlistItemsResponseSerializer(serializers.Serializer):
+    success = serializers.BooleanField()
+    watchlist = serializers.CharField()
+    items = WatchlistItemDetailSerializer(many=True)
+
+
+class MembershipSerializer(serializers.Serializer):
+    item_id = serializers.IntegerField()
+    watchlist_id = serializers.IntegerField()
+    watchlist_name = serializers.CharField()
+    added_at = serializers.DateTimeField()
+
+
+class MembershipResponseSerializer(serializers.Serializer):
+    success = serializers.BooleanField()
+    membership = MembershipSerializer(many=True)
+
+
+class ChartPointSerializer(serializers.Serializer):
+    timestamp = serializers.IntegerField()
+    price = serializers.FloatField()
+
+
+class ChartResponseSerializer(serializers.Serializer):
+    success = serializers.BooleanField()
+    coin_id = serializers.CharField()
+    chart_data = ChartPointSerializer(many=True)

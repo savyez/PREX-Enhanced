@@ -97,6 +97,12 @@ All routes are mounted below `/api/v1/`:
 
 See [`APIs.md`](APIs.md) for the full route-by-route reference.
 
+Interactive API documentation is available while the backend is running:
+
+- OpenAPI schema: `/api/v1/schema/`
+- Swagger UI: `/api/v1/docs/`
+- ReDoc: `/api/v1/redoc/`
+
 ## Authentication
 
 Login returns a short-lived access token and a refresh token. Send the access token on protected requests:

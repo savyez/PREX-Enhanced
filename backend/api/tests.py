@@ -7,6 +7,7 @@ from django.urls import reverse
 from django.utils import timezone
 from rest_framework.test import APITestCase
 from rest_framework_simplejwt.token_blacklist.models import OutstandingToken
+from rest_framework_simplejwt.tokens import RefreshToken
 
 from .models import Coin, User, Watchlist, WatchlistItem
 from . import views
@@ -139,11 +140,35 @@ class ApiIntegrationTests(APITestCase):
         self.assertIn('refresh_token', response.data)
         self.assertEqual(response.data['user']['email'], 'fay@example.com')
 
+    def test_expired_access_token_is_rejected(self):
+        user = self.create_user('expired', 'expired@example.com', 'Password123!')
+        access_token = RefreshToken.for_user(user).access_token
+        access_token['exp'] = int((timezone.now() - timedelta(minutes=1)).timestamp())
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {access_token}')
+
+        response = self.client.get(reverse('current_user'))
+
+        self.assertEqual(response.status_code, 401)
+
     def test_health_check_is_public(self):
         response = self.client.get(reverse('health_check'))
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data['status'], 'ok')
+
+    def test_openapi_schema_is_available(self):
+        response = self.client.get(reverse('api_schema'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('/api/v1/health/', response.data['paths'])
+        self.assertIn('/api/v1/login/', response.data['paths'])
+        self.assertIn('/api/v1/watchlists/create/', response.data['paths'])
+
+    def test_login_rejects_missing_required_fields(self):
+        response = self.client.post(reverse('login_user'), data={'email': 'bad@example.com'}, format='json')
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.data['error'], 'This field is required.')
 
     @patch('api.views.fetch_coingecko', side_effect=views.CoinGeckoTimeout)
     def test_coin_list_returns_gateway_timeout_when_provider_times_out(self, fetch_mock):
@@ -327,6 +352,17 @@ class ApiIntegrationTests(APITestCase):
         )
         self.assertEqual(add_coin_response.status_code, 200)
         self.assertEqual(add_coin_response.data['watchlist']['id'], watchlist_id)
+
+        duplicate_response = self.client.post(
+            reverse('add_coin_to_watchlist'),
+            data={
+                'user_id': str(user.id),
+                'watchlist_id': watchlist_id,
+                'ticker': 'BTC',
+            },
+            format='json'
+        )
+        self.assertEqual(duplicate_response.status_code, 409)
 
         items_response = self.client.get(reverse('show_watchlist_items', kwargs={'watchlist_id': watchlist_id}))
         self.assertEqual(items_response.status_code, 200)

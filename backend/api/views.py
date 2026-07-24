@@ -11,6 +11,9 @@ from .serializers import (
     RegisterRequestSerializer, LoginRequestSerializer, ProfileUpdateRequestSerializer,
     EmailRequestSerializer, PasswordResetConfirmRequestSerializer, RefreshTokenRequestSerializer,
     WatchlistNameRequestSerializer, WatchlistCoinRequestSerializer, UserScopedRequestSerializer,
+    ErrorResponseSerializer, MessageResponseSerializer, TokenResponseSerializer,
+    WatchlistResponseSerializer, WatchlistListResponseSerializer, WatchlistItemsResponseSerializer,
+    MembershipResponseSerializer, ChartResponseSerializer,
 )
 from django.core import signing
 from django.urls import reverse
@@ -20,6 +23,7 @@ from email.message import EmailMessage
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.decorators import api_view, permission_classes
+from drf_spectacular.utils import OpenApiParameter, OpenApiResponse, extend_schema
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.exceptions import TokenError
@@ -130,8 +134,10 @@ def send_password_reset_email(to_email, username, reset_url):
 
 
 # Simple view to test the API endpoint
+@extend_schema(tags=['system'], responses={200: MessageResponseSerializer})
 @api_view(['GET'])
 @permission_classes([AllowAny])
+@extend_schema(tags=['system'], responses={200: MessageResponseSerializer})
 def home(request):
     return Response({
         'message': 'Welcome to the PREX API!'
@@ -250,6 +256,14 @@ def resolve_coin_gecko_id(coin_id):
 # View to fetch the latest coin data from the CoinGecko API and update the database accordingly.
 @api_view(['GET'])
 @permission_classes([AllowAny])
+@extend_schema(
+    tags=['market'],
+    parameters=[
+        OpenApiParameter('page', int, OpenApiParameter.QUERY, default=1),
+        OpenApiParameter('page_size', int, OpenApiParameter.QUERY, default=25),
+    ],
+    responses={200: OpenApiResponse(description='Paginated coin market data.'), 502: ErrorResponseSerializer, 504: ErrorResponseSerializer},
+)
 def coin_list(request):
     try:
         print(f"Fetching Coin Data")
@@ -310,6 +324,13 @@ def coin_list(request):
 # view to get the chart data with time from the CoinGecko API
 @api_view(['GET'])
 @permission_classes([AllowAny])
+@extend_schema(
+    tags=['market'],
+    parameters=[
+        OpenApiParameter('days', int, OpenApiParameter.QUERY, default=7),
+    ],
+    responses={200: ChartResponseSerializer, 404: ErrorResponseSerializer, 502: ErrorResponseSerializer, 504: ErrorResponseSerializer},
+)
 def get_chart_data(request, coin_id=None):
     try: 
         print("fetching chart data from CoinGecko API.")
@@ -372,6 +393,7 @@ def get_chart_data(request, coin_id=None):
 # and sending a verification email.
 @api_view(['POST'])
 @permission_classes([AllowAny])
+@extend_schema(tags=['auth'], request=RegisterRequestSerializer, responses={200: MessageResponseSerializer, 400: ErrorResponseSerializer, 502: ErrorResponseSerializer})
 def register_user(request):
     data, error_response = validate_request_data(request, RegisterRequestSerializer)
     if error_response:
@@ -450,6 +472,7 @@ def register_user(request):
 #view to update user info through profile page.
 @api_view(['PATCH'])
 @permission_classes([IsAuthenticated])
+@extend_schema(tags=['auth'], request=ProfileUpdateRequestSerializer, responses={200: UserSerializer, 400: ErrorResponseSerializer, 403: ErrorResponseSerializer, 409: ErrorResponseSerializer})
 def update_user(request, user_id):
     permission_error = validate_authenticated_user_scope(request, user_id)
     if permission_error:
@@ -529,6 +552,7 @@ def verify_email(request, token):
 # token generation, and returning user information.
 @api_view(['POST'])
 @permission_classes([AllowAny])
+@extend_schema(tags=['auth'], request=LoginRequestSerializer, responses={200: TokenResponseSerializer, 400: ErrorResponseSerializer, 401: ErrorResponseSerializer, 403: ErrorResponseSerializer})
 def user_login(request):
     data, error_response = validate_request_data(request, LoginRequestSerializer)
     if error_response:
@@ -570,6 +594,7 @@ def user_login(request):
 # ensuring that the user is authenticated and returning relevant user details.
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
+@extend_schema(tags=['auth'], responses={200: UserSerializer, 401: ErrorResponseSerializer})
 def current_user(request):
     user = request.user
     return Response({
@@ -580,6 +605,7 @@ def current_user(request):
 # View to handle reset password request, including sending a password reset email with a secure token.
 @api_view(['POST'])
 @permission_classes([AllowAny])
+@extend_schema(tags=['auth'], request=EmailRequestSerializer, responses={200: MessageResponseSerializer, 400: ErrorResponseSerializer, 502: ErrorResponseSerializer})
 def reset_password(request):
     data, error_response = validate_request_data(request, EmailRequestSerializer)
     if error_response:
@@ -616,6 +642,7 @@ def reset_password(request):
 # checking the new password against validation rules, and updating the user's password.
 @api_view(['POST'])
 @permission_classes([AllowAny])
+@extend_schema(tags=['auth'], request=PasswordResetConfirmRequestSerializer, responses={200: MessageResponseSerializer, 400: ErrorResponseSerializer})
 def reset_password_confirm(request, token):
     data, error_response = validate_request_data(request, PasswordResetConfirmRequestSerializer)
     if error_response:
@@ -653,6 +680,7 @@ def reset_password_confirm(request, token):
 # ensuring that it cannot be used to generate new access tokens.
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
+@extend_schema(tags=['auth'], request=RefreshTokenRequestSerializer, responses={200: MessageResponseSerializer, 400: ErrorResponseSerializer, 403: ErrorResponseSerializer})
 def user_logout(request):
     data, error_response = validate_request_data(request, RefreshTokenRequestSerializer)
     if error_response:
@@ -685,6 +713,7 @@ def user_logout(request):
 # and returning the watchlist data in a structured format.
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
+@extend_schema(tags=['watchlists'], responses={200: WatchlistListResponseSerializer, 403: ErrorResponseSerializer, 404: ErrorResponseSerializer})
 def user_watchlists(request, user_id):
     if str(request.user.id) != str(user_id):
         return build_error_response(
@@ -716,6 +745,7 @@ def user_watchlists(request, user_id):
 # and returning the created watchlist data upon success.
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
+@extend_schema(tags=['watchlists'], request=WatchlistNameRequestSerializer, responses={201: WatchlistResponseSerializer, 400: ErrorResponseSerializer, 409: ErrorResponseSerializer})
 def create_watchlist(request):
     user = request.user
 
@@ -743,6 +773,7 @@ def create_watchlist(request):
 # is not already in the watchlist before adding it.
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
+@extend_schema(tags=['watchlists'], request=WatchlistCoinRequestSerializer, responses={200: WatchlistResponseSerializer, 400: ErrorResponseSerializer, 403: ErrorResponseSerializer, 404: ErrorResponseSerializer, 409: ErrorResponseSerializer})
 def add_coin_to_watchlist(request):
     data, error_response = validate_request_data(request, WatchlistCoinRequestSerializer)
     if error_response:
@@ -786,6 +817,7 @@ def add_coin_to_watchlist(request):
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
+@extend_schema(tags=['watchlists'], request=WatchlistCoinRequestSerializer, responses={200: WatchlistResponseSerializer, 400: ErrorResponseSerializer, 403: ErrorResponseSerializer, 404: ErrorResponseSerializer})
 def remove_coin_from_watchlist(request):
     data, error_response = validate_request_data(request, WatchlistCoinRequestSerializer)
     if error_response:
@@ -832,6 +864,7 @@ def remove_coin_from_watchlist(request):
 # including permission checks and returning the coin data in a structured format.
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
+@extend_schema(tags=['watchlists'], responses={200: WatchlistItemsResponseSerializer, 403: ErrorResponseSerializer, 404: ErrorResponseSerializer})
 def show_watchlist_items(request, watchlist_id):
     watchlist_id = request.query_params.get('watchlist_id') or watchlist_id
     if not watchlist_id:
@@ -857,6 +890,7 @@ def show_watchlist_items(request, watchlist_id):
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
+@extend_schema(tags=['watchlists'], responses={200: MembershipResponseSerializer, 404: ErrorResponseSerializer})
 def coin_watchlist_membership(request, ticker):
     """Return all watchlists (and item ids) for the authenticated user that contain the given coin ticker."""
     if not ticker:
@@ -885,6 +919,7 @@ def coin_watchlist_membership(request, ticker):
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
+@extend_schema(tags=['watchlists'], request=UserScopedRequestSerializer, responses={200: MessageResponseSerializer, 400: ErrorResponseSerializer, 403: ErrorResponseSerializer, 404: ErrorResponseSerializer})
 def delete_watchlist(request, watchlist_id):
     data, error_response = validate_request_data(request, UserScopedRequestSerializer)
     if error_response:
@@ -915,6 +950,14 @@ def delete_watchlist(request, watchlist_id):
 
 @api_view(['GET'])
 @permission_classes([AllowAny])
+@extend_schema(
+    tags=['market'],
+    parameters=[
+        OpenApiParameter('page', int, OpenApiParameter.QUERY, default=1),
+        OpenApiParameter('page_size', int, OpenApiParameter.QUERY, default=10),
+    ],
+    responses={200: OpenApiResponse(description='Paginated matching coin data.'), 400: ErrorResponseSerializer},
+)
 def search_coins(request, coin_id):
     query = coin_id.strip()
 
@@ -945,8 +988,51 @@ def search_coins(request, coin_id):
 
 @api_view(['GET'])
 @permission_classes([AllowAny])
+@extend_schema(tags=['system'], responses={200: MessageResponseSerializer})
 def health_check(request):
     return Response({
         'status': 'ok',
         'message': 'PREX API is healthy and running.'
     })
+
+
+# Apply schema metadata after DRF converts function views into API views.
+# This keeps the existing function-based implementation and route behavior.
+home = extend_schema(tags=['system'], responses={200: MessageResponseSerializer})(home)
+coin_list = extend_schema(
+    tags=['market'],
+    parameters=[
+        OpenApiParameter('page', int, OpenApiParameter.QUERY, default=1),
+        OpenApiParameter('page_size', int, OpenApiParameter.QUERY, default=25),
+    ],
+    responses={200: OpenApiResponse(description='Paginated coin market data.'), 502: ErrorResponseSerializer, 504: ErrorResponseSerializer},
+)(coin_list)
+get_chart_data = extend_schema(
+    tags=['market'],
+    parameters=[OpenApiParameter('days', int, OpenApiParameter.QUERY, default=7)],
+    responses={200: ChartResponseSerializer, 404: ErrorResponseSerializer, 502: ErrorResponseSerializer, 504: ErrorResponseSerializer},
+)(get_chart_data)
+search_coins = extend_schema(
+    tags=['market'],
+    parameters=[
+        OpenApiParameter('page', int, OpenApiParameter.QUERY, default=1),
+        OpenApiParameter('page_size', int, OpenApiParameter.QUERY, default=10),
+    ],
+    responses={200: OpenApiResponse(description='Paginated matching coin data.'), 400: ErrorResponseSerializer},
+)(search_coins)
+register_user = extend_schema(tags=['auth'], request=RegisterRequestSerializer, responses={200: MessageResponseSerializer, 400: ErrorResponseSerializer, 502: ErrorResponseSerializer})(register_user)
+update_user = extend_schema(tags=['auth'], request=ProfileUpdateRequestSerializer, responses={200: UserSerializer, 400: ErrorResponseSerializer, 403: ErrorResponseSerializer, 409: ErrorResponseSerializer})(update_user)
+user_login = extend_schema(tags=['auth'], request=LoginRequestSerializer, responses={200: TokenResponseSerializer, 400: ErrorResponseSerializer, 401: ErrorResponseSerializer, 403: ErrorResponseSerializer})(user_login)
+current_user = extend_schema(tags=['auth'], responses={200: UserSerializer, 401: ErrorResponseSerializer})(current_user)
+reset_password = extend_schema(tags=['auth'], request=EmailRequestSerializer, responses={200: MessageResponseSerializer, 400: ErrorResponseSerializer, 502: ErrorResponseSerializer})(reset_password)
+reset_password_confirm = extend_schema(tags=['auth'], request=PasswordResetConfirmRequestSerializer, responses={200: MessageResponseSerializer, 400: ErrorResponseSerializer})(reset_password_confirm)
+user_logout = extend_schema(tags=['auth'], request=RefreshTokenRequestSerializer, responses={200: MessageResponseSerializer, 400: ErrorResponseSerializer, 403: ErrorResponseSerializer})(user_logout)
+verify_email = extend_schema(tags=['auth'], responses={302: OpenApiResponse(description='Redirects to the configured frontend success URL.'), 400: ErrorResponseSerializer, 404: ErrorResponseSerializer})(verify_email)
+user_watchlists = extend_schema(tags=['watchlists'], responses={200: WatchlistListResponseSerializer, 403: ErrorResponseSerializer, 404: ErrorResponseSerializer})(user_watchlists)
+create_watchlist = extend_schema(tags=['watchlists'], request=WatchlistNameRequestSerializer, responses={201: WatchlistResponseSerializer, 400: ErrorResponseSerializer, 409: ErrorResponseSerializer})(create_watchlist)
+add_coin_to_watchlist = extend_schema(tags=['watchlists'], request=WatchlistCoinRequestSerializer, responses={200: WatchlistResponseSerializer, 400: ErrorResponseSerializer, 403: ErrorResponseSerializer, 404: ErrorResponseSerializer, 409: ErrorResponseSerializer})(add_coin_to_watchlist)
+remove_coin_from_watchlist = extend_schema(tags=['watchlists'], request=WatchlistCoinRequestSerializer, responses={200: WatchlistResponseSerializer, 400: ErrorResponseSerializer, 403: ErrorResponseSerializer, 404: ErrorResponseSerializer})(remove_coin_from_watchlist)
+show_watchlist_items = extend_schema(tags=['watchlists'], responses={200: WatchlistItemsResponseSerializer, 403: ErrorResponseSerializer, 404: ErrorResponseSerializer})(show_watchlist_items)
+coin_watchlist_membership = extend_schema(tags=['watchlists'], responses={200: MembershipResponseSerializer, 404: ErrorResponseSerializer})(coin_watchlist_membership)
+delete_watchlist = extend_schema(tags=['watchlists'], request=UserScopedRequestSerializer, responses={200: MessageResponseSerializer, 400: ErrorResponseSerializer, 403: ErrorResponseSerializer, 404: ErrorResponseSerializer})(delete_watchlist)
+health_check = extend_schema(tags=['system'], responses={200: MessageResponseSerializer})(health_check)
