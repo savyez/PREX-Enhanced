@@ -26,7 +26,11 @@ def get_pagination_params(request, default_page_size=DEFAULT_PAGE_SIZE, max_page
 
 
 def paginate_items(items, page, page_size):
-    total_count = len(items)
+    if hasattr(items, 'count') and callable(items.count):
+        total_count = items.count()
+    else:
+        total_count = len(items)
+
     total_pages = ceil(total_count / page_size) if total_count else 0
 
     if total_pages and page > total_pages:
@@ -46,7 +50,7 @@ def paginate_items(items, page, page_size):
 
 
 def build_paginated_response(serializer_class, items, page, page_size, extra_data=None, status_code=200):
-    pagination = paginate_items(list(items), page, page_size)
+    pagination = paginate_items(items, page, page_size)
     serializer = serializer_class(pagination['results'], many=True)
 
     payload = {
@@ -63,3 +67,4 @@ def build_paginated_response(serializer_class, items, page, page_size, extra_dat
         payload.update(extra_data)
 
     return Response(payload, status=status_code)
+

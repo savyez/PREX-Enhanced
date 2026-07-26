@@ -296,24 +296,49 @@ def coin_list(request):
             status.HTTP_502_BAD_GATEWAY
         )
 
-    try:
-        for coin_data in data:
-            Coin.objects.update_or_create(
-                ticker=coin_data['symbol'].upper(),
-                defaults={
-                    'coin_name': coin_data['name'],
-                    'price': coin_data['current_price'],
-                    'market_volume': coin_data['total_volume'],
-                    'last_updated_at': coin_data['last_updated'],
-                    'market_cap_rank': coin_data['market_cap_rank'],
-                    'price_change_24h': coin_data.get('price_change_percentage_24h') or 0,
-                }
-            )
-    except (KeyError, TypeError, ValueError):
+    if not isinstance(data, list):
         return build_error_response(
-            'Coin data is missing expected fields.',
+            'Coin data service returned an unexpected response format.',
             status.HTTP_502_BAD_GATEWAY
         )
+
+    for coin_data in data:
+        if not isinstance(coin_data, dict):
+            continue
+
+        symbol = coin_data.get('symbol')
+        name = coin_data.get('name')
+        if not symbol or not name:
+            continue
+
+        price = coin_data.get('current_price')
+        if price is None:
+            price = 0
+
+        volume = coin_data.get('total_volume')
+        if volume is None:
+            volume = 0
+
+        last_updated = coin_data.get('last_updated') or timezone.now()
+        price_change = coin_data.get('price_change_percentage_24h')
+        if price_change is None:
+            price_change = 0
+
+        try:
+            Coin.objects.update_or_create(
+                ticker=symbol.upper(),
+                defaults={
+                    'coin_name': name,
+                    'price': price,
+                    'market_volume': volume,
+                    'last_updated_at': last_updated,
+                    'market_cap_rank': coin_data.get('market_cap_rank'),
+                    'price_change_24h': price_change,
+                }
+            )
+        except Exception as item_error:
+            print(f"Skipping coin update for {symbol}: {item_error}")
+            continue
     Coin.objects.filter(market_cap_rank__isnull=True).delete()  # Remove coins without a market cap rank
     coins = Coin.objects.all().order_by('market_cap_rank', 'ticker')
 

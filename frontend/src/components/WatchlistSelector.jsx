@@ -17,19 +17,15 @@ function WatchlistSelector({ coin, onClose, onSuccess, existingMemberships = [],
       return;
     }
 
-    const selectionTimer = window.setTimeout(() => {
-      setSelectedWatchlistId((currentSelection) => {
-        const stillExists = watchlists.some((watchlist) => String(watchlist.id) === currentSelection);
-        if (stillExists) {
-          return currentSelection;
-        }
+    setSelectedWatchlistId((currentSelection) => {
+      const stillExists = watchlists.some((watchlist) => String(watchlist.id) === currentSelection);
+      if (stillExists) {
+        return currentSelection;
+      }
 
-        const firstExistingMembership = watchlists.find((watchlist) => existingWatchlistIds.has(String(watchlist.id)));
-        return String(firstExistingMembership?.id || watchlists[0].id);
-      });
-    }, 0);
-
-    return () => window.clearTimeout(selectionTimer);
+      const firstExistingMembership = watchlists.find((watchlist) => existingWatchlistIds.has(String(watchlist.id)));
+      return String(firstExistingMembership?.id || watchlists[0].id);
+    });
   }, [watchlists, existingWatchlistIds]);
 
   useEffect(() => {

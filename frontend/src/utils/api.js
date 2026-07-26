@@ -59,8 +59,7 @@ const apiFetch = async (path, options = {}, retry = true) => {
     retry &&
     auth &&
     localStorage.getItem('refresh_token') &&
-    response.status === 401 &&
-    data?.code === 'token_not_valid'
+    response.status === 401
   ) {
     try {
       await refreshAccessToken();

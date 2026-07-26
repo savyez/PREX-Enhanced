@@ -6,7 +6,7 @@ from .models import User, Coin, Watchlist, WatchlistItem
 
 class RegisterRequestSerializer(serializers.Serializer):
     username = serializers.CharField(max_length=150, trim_whitespace=True)
-    dob = serializers.DateField()
+    dob = serializers.DateField()   #DOB is required to be in YYYY-MM-DD format
     email = serializers.EmailField()
     password = serializers.CharField(write_only=True, trim_whitespace=False)
 

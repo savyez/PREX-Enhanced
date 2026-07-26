@@ -178,6 +178,29 @@ class ApiIntegrationTests(APITestCase):
         self.assertIn('timed out', response.data['error'])
         fetch_mock.assert_called_once()
 
+    @patch('api.views.fetch_coingecko')
+    def test_coin_list_handles_null_fields_gracefully(self, fetch_mock):
+        mock_response = patch('requests.Response').start()
+        mock_response.status_code = 200
+        mock_response.json.return_value = [
+            {
+                'symbol': 'nullcoin',
+                'name': 'Null Coin',
+                'current_price': None,
+                'total_volume': None,
+                'last_updated': '2026-01-01T00:00:00Z',
+                'market_cap_rank': 1,
+                'price_change_percentage_24h': None,
+            }
+        ]
+        fetch_mock.return_value = mock_response
+
+        response = self.client.get(reverse('coin_list'))
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data['results']), 1)
+        self.assertEqual(response.data['results'][0]['ticker'], 'NULLCOIN')
+        self.assertEqual(float(response.data['results'][0]['price']), 0.0)
+
     @patch('api.views.fetch_coingecko', side_effect=views.CoinGeckoTimeout)
     def test_chart_returns_gateway_timeout_when_provider_times_out(self, fetch_mock):
         response = self.client.get(

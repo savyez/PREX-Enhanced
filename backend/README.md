@@ -2,7 +2,7 @@
 
 The PREX backend is a Django 6 and Django REST Framework API for cryptocurrency market data, authentication, email verification, password reset, and user watchlists. It uses PostgreSQL and CoinGecko as the external market-data provider.
 
-For the complete endpoint reference, request bodies, response examples and authentication details, [click here to open `APIs.md`](APIs.md).
+For the complete endpoint reference, request bodies, response examples and authentication details, [click here to open `APIs.md`](APIs.md) or visit the interactive documentation.
 
 ## Backend Structure
 
@@ -149,7 +149,6 @@ The public load-balancer health check should use:
 
 ## Current Limitations
 
-- The API currently uses function-based views and manual request validation rather than a centralized schema/OpenAPI generator.
 - JWTs are handled by the frontend through browser storage; an HttpOnly cookie-based session design would reduce token exposure to XSS.
 - Rate limiting, centralized observability, background email delivery and provider-failure alerting are not yet implemented.
 - PostgreSQL backup/restore procedures, deployment manifests and CI/CD configuration are maintained outside this backend directory and should be added before a larger production rollout.

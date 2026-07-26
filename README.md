@@ -28,6 +28,7 @@ requirements.txt
 - Create and delete watchlists
 - Add, remove and inspect coin membership across watchlists
 - Public API health endpoint at `/api/v1/health/`
+- API Documentation using OpenAPI/Swagger at `/api/v1/docs/`
 - Request timeouts and error handling for CoinGecko requests
 
 ## Local Setup
