@@ -7,9 +7,7 @@ import { getWatchlistItems, getWatchlists, deleteWatchlist } from '../utils/api.
 import { useAuth } from '../context/authContext.jsx';
 import { useAlert } from '../context/alertContext.jsx';
 import { useNavigate } from 'react-router-dom';
-import { removeCoinFromWatchlist } from '../utils/api.js';
-import Alert from '@mui/material/Alert';
-
+import { useWatchlist } from '../context/watchlistContext.jsx';
 
 const formatPriceChange = (priceChange) => {
     const numericChange = Number(priceChange);
@@ -33,9 +31,9 @@ const getPriceChangeClass = (priceChange) => {
 
 function Watchlist() {
     const { user } = useAuth();
-    const [loading, setLoading] = useState(true);
+    const { watchlists, refreshWatchlists, removeCoin } = useWatchlist();
+    const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
-    const [watchlists, setWatchlists] = useState([]);
     const [selectedWatchlistId, setSelectedWatchlistId] = useState('');
     const [items, setItems] = useState([]);
     const [showCreateModal, setShowCreateModal] = useState(false);
@@ -48,31 +46,16 @@ function Watchlist() {
     const navigate = useNavigate();
 
     useEffect(() => {
-        const fetchWatchlists = async () => {
-            if (!user?.id) {
-                setLoading(false);
-                console.log("Auth User:", user);
-                return;
+        if (watchlists.length > 0) {
+            const exists = watchlists.some((w) => String(w.id) === String(selectedWatchlistId));
+            if (!exists) {
+                setSelectedWatchlistId(String(watchlists[0].id));
             }
-
-            try {
-                const data = await getWatchlists(user.id);
-                const userWatchlists = data.watchlists || [];
-
-                setWatchlists(userWatchlists);
-
-                if (userWatchlists.length > 0) {
-                    setSelectedWatchlistId(String(userWatchlists[0].id));
-                }
-            } catch (err) {
-                setError(err.message);
-            } finally {
-                setLoading(false);
-            }
-        };
-
-        fetchWatchlists();
-    }, [user]);
+        } else {
+            setSelectedWatchlistId('');
+            setItems([]);
+        }
+    }, [watchlists, selectedWatchlistId]);
 
     useEffect(() => {
         if (!selectedWatchlistId) {
@@ -100,16 +83,16 @@ function Watchlist() {
         (watchlist) => String(watchlist.id) === selectedWatchlistId
     );
 
-    const handleCreateWatchlistSuccess = (newWatchlist) => {
-        // Add the new watchlist to the list
-        setWatchlists([...watchlists, newWatchlist]);
-        // Select the new watchlist
-        setSelectedWatchlistId(String(newWatchlist.id));
+    const handleCreateWatchlistSuccess = async (newWatchlist) => {
+        await refreshWatchlists();
+        if (newWatchlist?.id) {
+            setSelectedWatchlistId(String(newWatchlist.id));
+        }
         showAlert(`Watchlist ${newWatchlist.name} created successfully.`, 'success');
     };
 
     const handleDeleteWatchlist = async () => {
-        if (!watchlistToDelete) {
+        if (!watchlistToDelete || !user?.id) {
             return;
         }
 
@@ -118,22 +101,7 @@ function Watchlist() {
         try {
             setDeleteLoading(true);
             await deleteWatchlist(user.id, watchlistId);
-
-            const remainingWatchlists = watchlists.filter(
-                (watchlist) => String(watchlist.id) !== String(watchlistId)
-            );
-
-            setWatchlists(remainingWatchlists);
-
-            if (String(selectedWatchlistId) === String(watchlistId)) {
-                setSelectedWatchlistId(
-                    remainingWatchlists.length > 0 ? String(remainingWatchlists[0].id) : ''
-                );
-
-                if (remainingWatchlists.length === 0) {
-                    setItems([]);
-                }
-            }
+            await refreshWatchlists();
             setWatchlistToDelete(null);
             showAlert(`Watchlist ${watchlistToDelete.name} deleted successfully.`, 'success');
         } catch (err) {
@@ -144,17 +112,11 @@ function Watchlist() {
     };
 
     const handleRemoveCoin = async () => {
-        if (!coinToRemove || !user) return;
+        if (!coinToRemove || !user?.id || !selectedWatchlistId) return;
 
         try {
             setRemoveLoading(true);
-
-            await removeCoinFromWatchlist(
-                user.id,
-                selectedWatchlistId,
-                coinToRemove.ticker.ticker
-            );
-
+            await removeCoin(coinToRemove.ticker.ticker, selectedWatchlistId);
             setItems((prev) =>
                 prev.filter(
                     (item) =>

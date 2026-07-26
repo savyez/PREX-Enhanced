@@ -209,11 +209,10 @@ const removeCoinFromWatchlist = (userId, watchlistId, ticker) =>
   });
 
 // Create a new watchlist for a user
-const createWatchlist = (userId, name) =>
+const createWatchlist = (name) =>
   apiAuth('/watchlists/create/', {
     method: 'POST',
     body: JSON.stringify({
-      user_id: userId,
       name: name,
     }),
   });
