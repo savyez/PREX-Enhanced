@@ -55,6 +55,7 @@ def sync_coingecko_market_data(self):
         last_updated = coin_data.get('last_updated') or timezone.now()
         price_change = coin_data.get('price_change_percentage_24h') if coin_data.get('price_change_percentage_24h') is not None else 0
         market_cap_rank = coin_data.get('market_cap_rank')
+        image = coin_data.get('image') or ''
 
         if ticker in existing_coins:
             coin = existing_coins[ticker]
@@ -64,6 +65,7 @@ def sync_coingecko_market_data(self):
             coin.last_updated_at = last_updated
             coin.market_cap_rank = market_cap_rank
             coin.price_change_24h = price_change
+            coin.image = image
             coins_to_update.append(coin)
         else:
             coins_to_create.append(
@@ -75,6 +77,7 @@ def sync_coingecko_market_data(self):
                     last_updated_at=last_updated,
                     market_cap_rank=market_cap_rank,
                     price_change_24h=price_change,
+                    image=image,
                 )
             )
 
@@ -85,7 +88,7 @@ def sync_coingecko_market_data(self):
         if coins_to_update:
             Coin.objects.bulk_update(
                 coins_to_update,
-                fields=['coin_name', 'price', 'market_volume', 'last_updated_at', 'market_cap_rank', 'price_change_24h']
+                fields=['coin_name', 'price', 'market_volume', 'last_updated_at', 'market_cap_rank', 'price_change_24h', 'image']
             )
 
     # Invalidate cached coin list pages so new market data is served immediately

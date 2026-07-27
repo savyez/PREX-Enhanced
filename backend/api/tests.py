@@ -5,6 +5,7 @@ from django.conf import settings
 from django.core import signing
 from django.urls import reverse
 from django.utils import timezone
+from django.test import override_settings
 from rest_framework.test import APITestCase
 from rest_framework_simplejwt.token_blacklist.models import OutstandingToken
 from rest_framework_simplejwt.tokens import RefreshToken
@@ -34,6 +35,7 @@ class ApiIntegrationTests(APITestCase):
         self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {token}')
         return response.data
 
+    @override_settings(EMAIL_HOST_USER='user@example.com', EMAIL_HOST_PASSWORD='password')
     @patch('api.views.smtplib.SMTP')
     @patch('api.views.smtplib.SMTP_SSL')
     def test_register_user_creates_unverified_user_and_sends_email(self, smtp_ssl_mock, smtp_mock):
@@ -259,13 +261,15 @@ class ApiIntegrationTests(APITestCase):
                 'last_updated': '2026-01-01T00:00:00Z',
                 'market_cap_rank': 1,
                 'price_change_percentage_24h': 2.5,
+                'image': 'https://assets.coingecko.com/coins/images/1/large/bitcoin.png',
             }
         ]
         fetch_mock.return_value = mock_response
 
         result = sync_coingecko_market_data()
         self.assertEqual(result['status'], 'success')
-        self.assertTrue(Coin.objects.filter(ticker='BTC').exists())
+        coin = Coin.objects.get(ticker='BTC')
+        self.assertEqual(coin.image, 'https://assets.coingecko.com/coins/images/1/large/bitcoin.png')
 
     def test_logout_requires_ownership_of_refresh_token(self):
 

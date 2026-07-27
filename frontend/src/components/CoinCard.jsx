@@ -83,6 +83,7 @@ function CoinCard({ coin, rank, onCardClick, showChart = false }) {
                         className="coin_image"
                         src={coin.image}
                         alt={coin.coin_name || 'coin_image'}
+                        referrerPolicy="no-referrer"
                         onError={() => setImageError(true)}
                     />
                 ) : (
