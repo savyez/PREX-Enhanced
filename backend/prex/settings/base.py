@@ -5,6 +5,7 @@ from datetime import timedelta
 from pathlib import Path
 from django.core.exceptions import ImproperlyConfigured
 from .environment import config, validate_required
+from celery.schedules import crontab
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
@@ -170,3 +171,19 @@ validate_required({
     'DB_PASSWORD': DATABASES['default']['PASSWORD'],
     'DB_HOST': DATABASES['default']['HOST'],
 })
+
+# Celery Configuration
+CELERY_BROKER_URL = config('CELERY_BROKER_URL')
+CELERY_RESULT_BACKEND = config('CELERY_RESULT_BACKEND')
+CELERY_ACCEPT_CONTENT = ['json']
+CELERY_TASK_SERIALIZER = 'json'
+CELERY_RESULT_SERIALIZER = 'json'
+CELERY_TIMEZONE = 'Asia/Kolkata'
+
+# Celery Beat Schedule
+CELERY_BEAT_SCHEDULE = {
+    'sync-coingecko-market-data-every-300s': {
+        'task': 'api.tasks.sync_coingecko_market_data',
+        'schedule': crontab(minute='*/5'),     #runs every 5 min
+    },
+}

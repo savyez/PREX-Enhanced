@@ -276,8 +276,7 @@ def resolve_coin_gecko_id(coin_id):
     return coins[0].get('id')
 
 
-
-# View to fetch the latest coin data from the CoinGecko API and update the database accordingly.
+# View to fetch local coin market data with pagination.
 @api_view(['GET'])
 @permission_classes([AllowAny])
 @extend_schema(
@@ -286,93 +285,21 @@ def resolve_coin_gecko_id(coin_id):
         OpenApiParameter('page', int, OpenApiParameter.QUERY, default=1),
         OpenApiParameter('page_size', int, OpenApiParameter.QUERY, default=25),
     ],
-    responses={200: OpenApiResponse(description='Paginated coin market data.'), 502: ErrorResponseSerializer, 504: ErrorResponseSerializer},
+    responses={200: OpenApiResponse(description='Paginated coin market data.')},
 )
 def coin_list(request):
-    try:
-        print(f"Fetching Coin Data")
-        response = fetch_coingecko(COINGECKO_API_URL, params={
-            "vs_currency": "usd",
-            "order_by": "market_cap_rank_asc",
-            "per_page": 250,
-            "page": 1,
-            "sparkline": True
-        })
-        response.raise_for_status()
-        print(f"Coin Data fetched successfully!")
-
-    except CoinGeckoTimeout:
-        return build_error_response(
-            'Coin data service timed out. Please try again later.',
-            status.HTTP_504_GATEWAY_TIMEOUT
-        )
-    except requests.RequestException:
-        return build_error_response(
-            'Unable to fetch live coin data right now. Please try again later.',
-            status.HTTP_502_BAD_GATEWAY
-        ) 
-
-    try:
-        data = response.json()
-    except ValueError:
-        return build_error_response(
-            'Coin data service returned an invalid response.',
-            status.HTTP_502_BAD_GATEWAY
-        )
-
-    if not isinstance(data, list):
-        return build_error_response(
-            'Coin data service returned an unexpected response format.',
-            status.HTTP_502_BAD_GATEWAY
-        )
-
-    for coin_data in data:
-        if not isinstance(coin_data, dict):
-            continue
-
-        symbol = coin_data.get('symbol')
-        name = coin_data.get('name')
-        if not symbol or not name:
-            continue
-
-        price = coin_data.get('current_price')
-        if price is None:
-            price = 0
-
-        image = coin_data.get('image')
-        if image is None:
-            continue
-
-        volume = coin_data.get('total_volume')
-        if volume is None:
-            volume = 0
-
-        last_updated = coin_data.get('last_updated') or timezone.now()
-        price_change = coin_data.get('price_change_percentage_24h')
-        if price_change is None:
-            price_change = 0
-
-        try:
-            Coin.objects.update_or_create(
-                ticker=symbol.upper(),
-                defaults={
-                    'coin_name': name,
-                    'price': price,
-                    'market_volume': volume,
-                    'last_updated_at': last_updated,
-                    'market_cap_rank': coin_data.get('market_cap_rank'),
-                    'price_change_24h': price_change,
-                    'image': image
-                }
-            )
-        except Exception as item_error:
-            print(f"Skipping coin update for {symbol}: {item_error}")
-            continue
-    Coin.objects.filter(market_cap_rank__isnull=True).delete()  # Remove coins without a market cap rank
-    coins = Coin.objects.all().order_by('market_cap_rank', 'ticker')
-
     page, page_size = get_pagination_params(request)
-    return build_paginated_response(CoinSerializer, coins, page, page_size)
+    cache_key = f"coin_list_page_{page}_size_{page_size}"
+    cached_data = cache.get(cache_key)
+    if cached_data is not None:
+        return Response(cached_data)
+
+    coins = Coin.objects.all().order_by('market_cap_rank', 'ticker')
+    response = build_paginated_response(CoinSerializer, coins, page, page_size)
+    if response.status_code == 200:
+        cache.set(cache_key, response.data, timeout=300)
+    return response
+
 
 
 # view to get the chart data with time from the CoinGecko API

@@ -86,6 +86,20 @@ npm run dev
 
 The frontend normally runs at `http://localhost:5173`.
 
+### Docker Setup
+
+You can run the entire stack (PostgreSQL, Redis, Django API, Celery Worker, Celery Beat, and React via Nginx) using Docker Compose:
+
+```powershell
+docker compose up --build -d
+```
+
+Access the application:
+- **Frontend App:** `http://localhost`
+- **Backend API:** `http://localhost:8000/api/v1/`
+- **Swagger Docs:** `http://localhost:8000/api/v1/docs/`
+
+
 ## Environment Configuration
 
 Production should use `prex.settings.production`:
