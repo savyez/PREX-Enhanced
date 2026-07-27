@@ -84,6 +84,7 @@ class Coin(models.Model):
     ticker = models.CharField(max_length=16, primary_key=True)
     coin_name = models.CharField(max_length=100, unique=True)
     price = models.DecimalField(max_digits=20, decimal_places=8)
+    image = models.URLField(max_length=200, blank=True)
     market_cap_rank = models.IntegerField(null=True, blank=True)
     market_volume = models.DecimalField(max_digits=24, decimal_places=2)
     last_updated_at = models.DateTimeField()

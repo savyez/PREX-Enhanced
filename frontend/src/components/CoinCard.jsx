@@ -17,6 +17,8 @@ function CoinCard({ coin, rank, onCardClick, showChart = false }) {
     const { showAlert } = useAlert();
     const memberWatchlists = membershipMap[coin?.ticker] || [];
 
+    const [imageError, setImageError] = useState(false);
+
     const price = Number(coin.price).toLocaleString();
     const priceChange = Number(coin.price_change_24h);
     const hasPriceChange = Number.isFinite(priceChange);
@@ -75,6 +77,19 @@ function CoinCard({ coin, rank, onCardClick, showChart = false }) {
                 </div>
 
                 <p className={`price-change ${priceChangeClass}`}>Change(24h): {formattedPriceChange}</p>
+
+                {coin?.image && !imageError ? (
+                    <img
+                        className="coin_image"
+                        src={coin.image}
+                        alt={coin.coin_name || 'coin_image'}
+                        onError={() => setImageError(true)}
+                    />
+                ) : (
+                    <div className="coin-image-placeholder" aria-hidden="true">
+                        {(coin?.ticker || coin?.coin_name || '?').charAt(0).toUpperCase()}
+                    </div>
+                )}
 
                 <div className="coin-price">
                     <strong>${price}</strong>

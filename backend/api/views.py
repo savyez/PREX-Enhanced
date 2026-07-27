@@ -339,6 +339,10 @@ def coin_list(request):
         if price is None:
             price = 0
 
+        image = coin_data.get('image')
+        if image is None:
+            continue
+
         volume = coin_data.get('total_volume')
         if volume is None:
             volume = 0
@@ -358,6 +362,7 @@ def coin_list(request):
                     'last_updated_at': last_updated,
                     'market_cap_rank': coin_data.get('market_cap_rank'),
                     'price_change_24h': price_change,
+                    'image': image
                 }
             )
         except Exception as item_error:
