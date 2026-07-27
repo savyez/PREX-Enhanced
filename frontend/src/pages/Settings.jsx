@@ -3,13 +3,18 @@ import { Link, useNavigate } from 'react-router-dom';
 import Button from '../components/Button.jsx';
 import Form from '../components/Form.jsx';
 import { requestPasswordReset } from '../utils/api.js';
-import { getUser, isAuthenticated, clearAuth } from '../utils/auth.js';
+import { getUser, isAuthenticated } from '../utils/auth.js';
+import { useAuth } from '../context/authContext.jsx';
 import '../styles/page_style/settings.css';
 import Alert from '@mui/material/Alert';
 
 function Settings() {
   const navigate = useNavigate();
-  const user = useMemo(() => getUser(), []);
+  const { logout: authLogout, user: authUser, authenticated } = useAuth();
+  const fallbackUser = useMemo(() => getUser(), []);
+  const user = authUser || fallbackUser;
+  const isUserAuthenticated = authenticated || isAuthenticated();
+
   const [values, setValues] = useState({ email: user?.email || '' });
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
@@ -29,8 +34,10 @@ function Settings() {
     setMessage('');
     setLoading(true);
 
+    const emailToSend = (values.email || user?.email || '').trim();
+
     try {
-      const response = await requestPasswordReset(values.email.trim());
+      const response = await requestPasswordReset(emailToSend);
       setMessage(response?.message || 'Password reset instructions sent.');
     } catch (err) {
       setError(err.message || 'Unable to send password reset email.');
@@ -39,8 +46,8 @@ function Settings() {
     }
   };
 
-  const handleLogout = () => {
-    clearAuth();
+  const handleLogout = async () => {
+    await authLogout();
     navigate('/login');
   };
 
@@ -65,7 +72,7 @@ function Settings() {
           </p>
         </header>
 
-        {!isAuthenticated() ? (
+        {!isUserAuthenticated ? (
           <div className="settings-card settings-auth-card">
             <h2>You need to log in</h2>
             <p>Sign in to manage account actions like password reset and logout.</p>

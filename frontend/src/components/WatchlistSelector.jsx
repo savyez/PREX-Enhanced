@@ -12,21 +12,14 @@ function WatchlistSelector({ coin, onClose, onSuccess, existingMemberships = [],
     [existingMemberships]
   );
 
-  useEffect(() => {
-    if (watchlists.length === 0) {
-      return;
+  const activeSelectedWatchlistId = useMemo(() => {
+    if (watchlists.length === 0) return '';
+    if (selectedWatchlistId && watchlists.some((watchlist) => String(watchlist.id) === selectedWatchlistId)) {
+      return selectedWatchlistId;
     }
-
-    setSelectedWatchlistId((currentSelection) => {
-      const stillExists = watchlists.some((watchlist) => String(watchlist.id) === currentSelection);
-      if (stillExists) {
-        return currentSelection;
-      }
-
-      const firstExistingMembership = watchlists.find((watchlist) => existingWatchlistIds.has(String(watchlist.id)));
-      return String(firstExistingMembership?.id || watchlists[0].id);
-    });
-  }, [watchlists, existingWatchlistIds]);
+    const firstExistingMembership = watchlists.find((watchlist) => existingWatchlistIds.has(String(watchlist.id)));
+    return String(firstExistingMembership?.id || watchlists[0]?.id || '');
+  }, [watchlists, existingWatchlistIds, selectedWatchlistId]);
 
   useEffect(() => {
     if (error) {
@@ -35,13 +28,13 @@ function WatchlistSelector({ coin, onClose, onSuccess, existingMemberships = [],
   }, [error, showAlert]);
 
   const handleAdd = async () => {
-    if (!selectedWatchlistId) {
+    if (!activeSelectedWatchlistId) {
       showAlert('Please select a watchlist.', 'warning');
       return;
     }
 
     const alreadyInSelectedWatchlist = existingMemberships.some(
-      (membership) => String(membership.watchlist_id) === String(selectedWatchlistId)
+      (membership) => String(membership.watchlist_id) === String(activeSelectedWatchlistId)
     );
 
     if (alreadyInSelectedWatchlist) {
@@ -50,7 +43,7 @@ function WatchlistSelector({ coin, onClose, onSuccess, existingMemberships = [],
     }
 
     try {
-      await addCoin(coin.ticker, selectedWatchlistId);
+      await addCoin(coin.ticker, activeSelectedWatchlistId);
       onSuccess?.();
       onClose();
     } catch (err) {
@@ -59,13 +52,13 @@ function WatchlistSelector({ coin, onClose, onSuccess, existingMemberships = [],
   };
 
   const handleRemove = async () => {
-    if (!selectedWatchlistId) {
+    if (!activeSelectedWatchlistId) {
       showAlert('Please select a watchlist.', 'warning');
       return;
     }
 
     const membership = existingMemberships.find(
-      (entry) => String(entry.watchlist_id) === String(selectedWatchlistId)
+      (entry) => String(entry.watchlist_id) === String(activeSelectedWatchlistId)
     );
 
     if (!membership) {
@@ -106,7 +99,7 @@ function WatchlistSelector({ coin, onClose, onSuccess, existingMemberships = [],
                       type="radio"
                       name="watchlist"
                       value={watchlist.id}
-                      checked={String(watchlist.id) === selectedWatchlistId}
+                      checked={String(watchlist.id) === activeSelectedWatchlistId}
                       onChange={(e) => {
                         setSelectedWatchlistId(e.target.value);
                         if (isInWatchlist) {
@@ -119,6 +112,7 @@ function WatchlistSelector({ coin, onClose, onSuccess, existingMemberships = [],
                 );
               })}
             </div>
+
 
             <div className="watchlist-selector-actions">
               <button className="watchlist-selector-cancel" onClick={onClose}>
