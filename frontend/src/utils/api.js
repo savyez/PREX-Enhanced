@@ -246,6 +246,15 @@ const requestPasswordReset = (email) =>
     body: JSON.stringify({ email }),
   });
 
+const confirmPasswordReset = (token, newPassword, confirmNewPassword) =>
+  apiNoAuth(`/reset-password-confirm/${token}/`, {
+    method: 'POST',
+    body: JSON.stringify({
+      new_password: newPassword,
+      confirm_new_password: confirmNewPassword,
+    }),
+  });
+
 const chart_data = (coinId, days) => apiNoAuth(`/coins/${encodeURIComponent(coinId)}/chart/?days=${days}`);
 
 
@@ -268,5 +277,7 @@ export {
   getCurrentUser,
   searchCoins,
   requestPasswordReset,
+  confirmPasswordReset,
   chart_data
 };
+

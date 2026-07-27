@@ -21,6 +21,8 @@ const Logout = lazy(() => import('../pages/Logout'));
 const Profile = lazy(() => import('../pages/Profile'));
 const Settings = lazy(() => import('../pages/Settings'));
 const Search = lazy(() => import('../pages/Search'));
+const ResetPasswordRequest = lazy(() => import('../pages/ResetPasswordRequest'));
+const ResetPasswordConfirm = lazy(() => import('../pages/ResetPasswordConfirm'));
 
 function App() {
   return (
@@ -36,6 +38,10 @@ function App() {
                 <Route path="/watchlist" element={<Watchlist />} />
                 <Route path="/login" element={<Login />} />
                 <Route path="/register" element={<Register />} />
+                <Route path="/reset-password" element={<ResetPasswordRequest />} />
+                <Route path="/forgot-password" element={<ResetPasswordRequest />} />
+                <Route path="/reset-password-confirm/:token" element={<ResetPasswordConfirm />} />
+                <Route path="/reset-password/:token" element={<ResetPasswordConfirm />} />
                 <Route path="/verification-pending" element={<VerificationPending />} />
                 <Route path="/about" element={<About />} />
                 <Route path="/contact" element={<Contact />} />
@@ -54,5 +60,6 @@ function App() {
     </BrowserRouter>
   );
 }
+
 
 export default App;

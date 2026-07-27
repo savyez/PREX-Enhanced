@@ -139,6 +139,8 @@ EMAIL_VERIFICATION_URL = config('EMAIL_VERIFICATION_URL', default='')
 EMAIL_VERIFICATION_SUCCESS_URL = config('EMAIL_VERIFICATION_SUCCESS_URL', default='')
 PASSWORD_RESET_SALT = 'api.password_reset'
 PASSWORD_RESET_MAX_AGE_SECONDS = config('PASSWORD_RESET_MAX_AGE_SECONDS', cast=int, default=600)
+PASSWORD_RESET_URL = config('PASSWORD_RESET_URL', default='http://localhost:5173/reset-password-confirm')
+
 
 DATABASES = {
     'default': {

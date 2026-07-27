@@ -3,11 +3,13 @@ import { useEffect, useState } from 'react';
 import Button from '../components/Button.jsx';
 import CreateWatchlistModal from '../modals/CreateWatchlistModal.jsx';
 import ConfirmationModal from '../modals/ConfirmationModal.jsx';
-import { getWatchlistItems, getWatchlists, deleteWatchlist } from '../utils/api.js';
+import { getWatchlistItems, deleteWatchlist } from '../utils/api.js';
 import { useAuth } from '../context/authContext.jsx';
 import { useAlert } from '../context/alertContext.jsx';
 import { useNavigate } from 'react-router-dom';
 import { useWatchlist } from '../context/watchlistContext.jsx';
+import Alert from '@mui/material/Alert';
+
 
 const formatPriceChange = (priceChange) => {
     const numericChange = Number(priceChange);

@@ -212,7 +212,50 @@ class ApiIntegrationTests(APITestCase):
         self.assertIn('timed out', response.data['error'])
         fetch_mock.assert_called_once()
 
+    @patch('api.views.fetch_coingecko')
+    def test_resolve_coin_gecko_id_multi_word_coin(self, fetch_mock):
+        Coin.objects.create(
+            ticker='WBTC',
+            coin_name='Wrapped Bitcoin',
+            price='60000.00',
+            market_volume='1000000.00',
+            last_updated_at=timezone.now(),
+        )
+        mock_response = patch('requests.Response').start()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            'coins': [
+                {'id': 'wrapped-bitcoin', 'name': 'Wrapped Bitcoin', 'symbol': 'WBTC'},
+                {'id': 'bitcoin', 'name': 'Bitcoin', 'symbol': 'BTC'},
+            ]
+        }
+        fetch_mock.return_value = mock_response
+
+        resolved = views.resolve_coin_gecko_id('WBTC')
+        self.assertEqual(resolved, 'wrapped-bitcoin')
+
+        # Test resolving by coin name (e.g. 'Wrapped Bitcoin' or 'Pudgy Penguin')
+        resolved_by_name = views.resolve_coin_gecko_id('Wrapped Bitcoin')
+        self.assertEqual(resolved_by_name, 'wrapped-bitcoin')
+
+    def test_search_coins_by_name(self):
+        Coin.objects.create(
+            ticker='PUDGY',
+            coin_name='Pudgy Penguin',
+            price='15.50',
+            market_volume='500000.00',
+            last_updated_at=timezone.now(),
+        )
+
+        response = self.client.get(reverse('search_coins', kwargs={'coin_id': 'Pudgy Penguin'}))
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data['results']), 1)
+        self.assertEqual(response.data['results'][0]['ticker'], 'PUDGY')
+        self.assertEqual(response.data['results'][0]['coin_name'], 'Pudgy Penguin')
+
     def test_logout_requires_ownership_of_refresh_token(self):
+
+
         user1 = self.create_user('fayone', 'fayone@example.com', 'Password123!', email_confirmed=True)
         user2 = self.create_user('faytwo', 'faytwo@example.com', 'Password123!', email_confirmed=True)
 
@@ -341,6 +384,17 @@ class ApiIntegrationTests(APITestCase):
 
         user.refresh_from_db()
         self.assertTrue(user.check_password('NewPass!234'))
+
+    def test_reset_password_confirm_get_redirects_to_frontend(self):
+        user = self.create_user('hannah', 'hannah@example.com', 'Password123!', email_confirmed=True)
+        token = signing.dumps({'email': user.email}, salt=settings.PASSWORD_RESET_SALT)
+
+        response = self.client.get(reverse('reset_password_confirm', kwargs={'token': token}))
+
+        self.assertEqual(response.status_code, 302)
+        expected_url = f"{settings.PASSWORD_RESET_URL.rstrip('/')}/{token}"
+        self.assertEqual(response['Location'], expected_url)
+
 
     @patch('api.views.smtplib.SMTP')
     @patch('api.views.smtplib.SMTP_SSL')

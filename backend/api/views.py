@@ -218,16 +218,25 @@ def validate_authenticated_user_scope(request, user_id):
 
 
 def resolve_coin_gecko_id(coin_id):
-    normalized_coin_id = str(coin_id).strip()
-    if not normalized_coin_id:
+    raw_input = str(coin_id).strip()
+    if not raw_input:
         return None
 
-    local_coin = Coin.objects.filter(ticker__iexact=normalized_coin_id).first()
+    search_query = raw_input
+    ticker_target = raw_input.upper()
+    name_target = raw_input
+
+    local_coin = Coin.objects.filter(
+        Q(ticker__iexact=raw_input) | Q(coin_name__iexact=raw_input) | Q(coin_name__icontains=raw_input)
+    ).first()
     if local_coin:
-        normalized_coin_id = local_coin.coin_name.strip()
+        search_query = local_coin.coin_name.strip()
+        name_target = local_coin.coin_name.strip()
+        ticker_target = local_coin.ticker.strip().upper()
+
 
     try:
-        response = fetch_coingecko(COINGECKO_SEARCH_URL, params={'query': normalized_coin_id})
+        response = fetch_coingecko(COINGECKO_SEARCH_URL, params={'query': search_query})
         response.raise_for_status()
         payload = response.json()
     except CoinGeckoTimeout:
@@ -239,18 +248,33 @@ def resolve_coin_gecko_id(coin_id):
     if not coins:
         return None
 
-    search_key = normalized_coin_id.upper()
+    raw_lower = raw_input.lower()
+    raw_slug = raw_lower.replace(' ', '-').replace('_', '-')
+    name_lower = name_target.lower()
+    name_slug = name_lower.replace(' ', '-').replace('_', '-')
+
+    # 1. Match by CoinGecko ID (exact or slugified)
     for candidate in coins:
-        if candidate.get('id', '').strip().lower() == normalized_coin_id.lower():
-            return candidate.get('id')
-        if candidate.get('symbol', '').upper() == search_key:
+        candidate_id = str(candidate.get('id', '')).strip().lower()
+        if candidate_id in (raw_lower, raw_slug, name_lower, name_slug):
             return candidate.get('id')
 
+    # 2. Match by Symbol/Ticker
     for candidate in coins:
-        if candidate.get('name', '').strip().lower() == normalized_coin_id.lower():
+        candidate_symbol = str(candidate.get('symbol', '')).strip().upper()
+        if candidate_symbol in (ticker_target, raw_input.upper()):
             return candidate.get('id')
 
+    # 3. Match by Name (exact or slugified)
+    for candidate in coins:
+        candidate_name = str(candidate.get('name', '')).strip().lower()
+        candidate_name_slug = candidate_name.replace(' ', '-').replace('_', '-')
+        if candidate_name in (name_lower, raw_lower) or candidate_name_slug in (name_slug, raw_slug):
+            return candidate.get('id')
+
+    # 4. Fallback to top search result
     return coins[0].get('id')
+
 
 
 # View to fetch the latest coin data from the CoinGecko API and update the database accordingly.
@@ -646,9 +670,13 @@ def reset_password(request):
         {'email': user.email},
         salt=settings.PASSWORD_RESET_SALT,
     )
-    reset_url = request.build_absolute_uri(
-        reverse('reset_password_confirm', kwargs={'token': token})
-    )
+    if getattr(settings, 'PASSWORD_RESET_URL', None):
+        base_reset_url = settings.PASSWORD_RESET_URL.rstrip('/')
+        reset_url = f"{base_reset_url}/{token}"
+    else:
+        reset_url = request.build_absolute_uri(
+            reverse('reset_password_confirm', kwargs={'token': token})
+        )
 
     try:
         print(f"Sending Password reset mail to {email}")
@@ -665,10 +693,15 @@ def reset_password(request):
 
 # View to handle password reset confirmation, including validating the token, 
 # checking the new password against validation rules, and updating the user's password.
-@api_view(['POST'])
+@api_view(['GET', 'POST'])
 @permission_classes([AllowAny])
-@extend_schema(tags=['auth'], request=PasswordResetConfirmRequestSerializer, responses={200: MessageResponseSerializer, 400: ErrorResponseSerializer})
+@extend_schema(tags=['auth'], request=PasswordResetConfirmRequestSerializer, responses={200: MessageResponseSerializer, 302: OpenApiResponse(description='Redirects to frontend reset password page on GET.'), 400: ErrorResponseSerializer})
 def reset_password_confirm(request, token):
+    if request.method == 'GET':
+        base_url = getattr(settings, 'PASSWORD_RESET_URL', None)
+        target_url = f"{base_url.rstrip('/')}/{token}"
+        return redirect(target_url)
+
     data, error_response = validate_request_data(request, PasswordResetConfirmRequestSerializer)
     if error_response:
         return error_response
@@ -699,6 +732,7 @@ def reset_password_confirm(request, token):
         'success': True,
         'message': 'Password reset successfully.'
         })
+
 
 
 # View to handle user logout by blacklisting the refresh token, 
@@ -987,7 +1021,7 @@ def search_coins(request, coin_id):
     query = coin_id.strip()
 
     coins = Coin.objects.filter(
-        Q(ticker=query.upper()) | Q(coin_name__iexact=query)
+        Q(ticker__icontains=query) | Q(coin_name__icontains=query)
     ).distinct().order_by('market_cap_rank', 'ticker')
 
     if not coins.exists():
@@ -1050,7 +1084,7 @@ update_user = extend_schema(tags=['auth'], request=ProfileUpdateRequestSerialize
 user_login = extend_schema(tags=['auth'], request=LoginRequestSerializer, responses={200: TokenResponseSerializer, 400: ErrorResponseSerializer, 401: ErrorResponseSerializer, 403: ErrorResponseSerializer})(user_login)
 current_user = extend_schema(tags=['auth'], responses={200: UserSerializer, 401: ErrorResponseSerializer})(current_user)
 reset_password = extend_schema(tags=['auth'], request=EmailRequestSerializer, responses={200: MessageResponseSerializer, 400: ErrorResponseSerializer, 502: ErrorResponseSerializer})(reset_password)
-reset_password_confirm = extend_schema(tags=['auth'], request=PasswordResetConfirmRequestSerializer, responses={200: MessageResponseSerializer, 400: ErrorResponseSerializer})(reset_password_confirm)
+reset_password_confirm = extend_schema(tags=['auth'], request=PasswordResetConfirmRequestSerializer, responses={200: MessageResponseSerializer, 302: OpenApiResponse(description='Redirects to frontend reset password page on GET.'), 400: ErrorResponseSerializer})(reset_password_confirm)
 user_logout = extend_schema(tags=['auth'], request=RefreshTokenRequestSerializer, responses={200: MessageResponseSerializer, 400: ErrorResponseSerializer, 403: ErrorResponseSerializer})(user_logout)
 verify_email = extend_schema(tags=['auth'], responses={302: OpenApiResponse(description='Redirects to the configured frontend success URL.'), 400: ErrorResponseSerializer, 404: ErrorResponseSerializer})(verify_email)
 user_watchlists = extend_schema(tags=['watchlists'], responses={200: WatchlistListResponseSerializer, 403: ErrorResponseSerializer, 404: ErrorResponseSerializer})(user_watchlists)
