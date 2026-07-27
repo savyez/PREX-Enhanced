@@ -1,6 +1,7 @@
 import requests
 from celery import shared_task
 from django.conf import settings
+from django.core.cache import cache
 from django.db import transaction
 from django.utils import timezone
 
@@ -86,6 +87,12 @@ def sync_coingecko_market_data(self):
                 coins_to_update,
                 fields=['coin_name', 'price', 'market_volume', 'last_updated_at', 'market_cap_rank', 'price_change_24h']
             )
+
+    # Invalidate cached coin list pages so new market data is served immediately
+    try:
+        cache.clear()
+    except Exception as cache_err:
+        print(f"Failed to clear cache after market sync: {cache_err}")
 
     return {
         "status": "success",

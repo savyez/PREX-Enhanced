@@ -5,6 +5,7 @@ from datetime import timedelta
 from pathlib import Path
 from django.core.exceptions import ImproperlyConfigured
 from .environment import config, validate_required
+from celery.schedules import crontab
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
@@ -183,6 +184,6 @@ CELERY_TIMEZONE = 'Asia/Kolkata'
 CELERY_BEAT_SCHEDULE = {
     'sync-coingecko-market-data-every-300s': {
         'task': 'api.tasks.sync_coingecko_market_data',
-        'schedule': 300.0,
+        'schedule': crontab(minute='*/5'),     #runs every 5 min
     },
 }

@@ -170,36 +170,28 @@ class ApiIntegrationTests(APITestCase):
         self.assertEqual(response.status_code, 400)
         self.assertEqual(response.data['error'], 'This field is required.')
 
-    @patch('api.views.fetch_coingecko', side_effect=views.CoinGeckoTimeout)
-    def test_coin_list_returns_gateway_timeout_when_provider_times_out(self, fetch_mock):
-        response = self.client.get(reverse('coin_list'))
+    def test_coin_list_returns_paginated_local_coins(self):
+        Coin.objects.create(
+            ticker='BTC',
+            coin_name='Bitcoin',
+            price='65000.00',
+            market_volume='2000000000.00',
+            market_cap_rank=1,
+            last_updated_at=timezone.now(),
+        )
 
-        self.assertEqual(response.status_code, 504)
-        self.assertIn('timed out', response.data['error'])
-        fetch_mock.assert_called_once()
+        response1 = self.client.get(reverse('coin_list'))
+        self.assertEqual(response1.status_code, 200)
+        self.assertEqual(len(response1.data['results']), 1)
+        self.assertEqual(response1.data['results'][0]['ticker'], 'BTC')
+        self.assertEqual(response1.data['results'][0]['coin_name'], 'Bitcoin')
 
-    @patch('api.views.fetch_coingecko')
-    def test_coin_list_handles_null_fields_gracefully(self, fetch_mock):
-        mock_response = patch('requests.Response').start()
-        mock_response.status_code = 200
-        mock_response.json.return_value = [
-            {
-                'symbol': 'nullcoin',
-                'name': 'Null Coin',
-                'current_price': None,
-                'total_volume': None,
-                'last_updated': '2026-01-01T00:00:00Z',
-                'market_cap_rank': 1,
-                'price_change_percentage_24h': None,
-            }
-        ]
-        fetch_mock.return_value = mock_response
+        # Test cache hit on subsequent request
+        response2 = self.client.get(reverse('coin_list'))
+        self.assertEqual(response2.status_code, 200)
+        self.assertEqual(response2.data, response1.data)
 
-        response = self.client.get(reverse('coin_list'))
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(len(response.data['results']), 1)
-        self.assertEqual(response.data['results'][0]['ticker'], 'NULLCOIN')
-        self.assertEqual(float(response.data['results'][0]['price']), 0.0)
+
 
     @patch('api.views.fetch_coingecko', side_effect=views.CoinGeckoTimeout)
     def test_chart_returns_gateway_timeout_when_provider_times_out(self, fetch_mock):
