@@ -253,7 +253,30 @@ class ApiIntegrationTests(APITestCase):
         self.assertEqual(response.data['results'][0]['ticker'], 'PUDGY')
         self.assertEqual(response.data['results'][0]['coin_name'], 'Pudgy Penguin')
 
+    @patch('api.tasks.fetch_coingecko')
+    def test_sync_coingecko_market_data_task(self, fetch_mock):
+        from .tasks import sync_coingecko_market_data
+        mock_response = patch('requests.Response').start()
+        mock_response.status_code = 200
+        mock_response.json.return_value = [
+            {
+                'symbol': 'btc',
+                'name': 'Bitcoin',
+                'current_price': 65000.0,
+                'total_volume': 2000000000.0,
+                'last_updated': '2026-01-01T00:00:00Z',
+                'market_cap_rank': 1,
+                'price_change_percentage_24h': 2.5,
+            }
+        ]
+        fetch_mock.return_value = mock_response
+
+        result = sync_coingecko_market_data()
+        self.assertEqual(result['status'], 'success')
+        self.assertTrue(Coin.objects.filter(ticker='BTC').exists())
+
     def test_logout_requires_ownership_of_refresh_token(self):
+
 
 
         user1 = self.create_user('fayone', 'fayone@example.com', 'Password123!', email_confirmed=True)

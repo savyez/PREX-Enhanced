@@ -170,3 +170,19 @@ validate_required({
     'DB_PASSWORD': DATABASES['default']['PASSWORD'],
     'DB_HOST': DATABASES['default']['HOST'],
 })
+
+# Celery Configuration
+CELERY_BROKER_URL = config('CELERY_BROKER_URL')
+CELERY_RESULT_BACKEND = config('CELERY_RESULT_BACKEND')
+CELERY_ACCEPT_CONTENT = ['json']
+CELERY_TASK_SERIALIZER = 'json'
+CELERY_RESULT_SERIALIZER = 'json'
+CELERY_TIMEZONE = 'Asia/Kolkata'
+
+# Celery Beat Schedule
+CELERY_BEAT_SCHEDULE = {
+    'sync-coingecko-market-data-every-300s': {
+        'task': 'api.tasks.sync_coingecko_market_data',
+        'schedule': 300.0,
+    },
+}
