@@ -381,7 +381,23 @@ The path user ID must match the authenticated user.
       "id": 1,
       "name": "Long Term",
       "created_at": "2026-07-22T10:00:00Z",
-      "updated_at": "2026-07-22T10:00:00Z"
+      "updated_at": "2026-07-22T10:00:00Z",
+      "items": [
+        {
+          "id": 10,
+          "ticker": {
+            "ticker": "SOL",
+            "coin_name": "Solana",
+            "price": "80.55",
+            "market_volume": "3134836373.00",
+            "last_updated_at": "2026-07-22T10:00:00Z",
+            "market_cap_rank": 5,
+            "price_change_24h": "2.50",
+            "image": "https://..."
+          },
+          "added_at": "2026-07-22T10:00:00Z"
+        }
+      ]
     }
   ]
 }

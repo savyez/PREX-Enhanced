@@ -1,7 +1,7 @@
 /* eslint-disable react-refresh/only-export-components */
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { useAuth } from './authContext';
-import { addCoinToWatchlist, getWatchlistItems, getWatchlists, removeCoinFromWatchlist } from '../utils/api';
+import { addCoinToWatchlist, getWatchlists, removeCoinFromWatchlist } from '../utils/api';
 
 const WatchlistContext = createContext(null);
 
@@ -27,29 +27,26 @@ export function WatchlistProvider({ children }) {
       const { watchlists: userWatchlists = [] } = await getWatchlists(user.id);
       const nextMembershipMap = {};
 
-      await Promise.all(
-        userWatchlists.map(async (watchlist) => {
-          const response = await getWatchlistItems(watchlist.id);
-          const items = response.items || [];
+      userWatchlists.forEach((watchlist) => {
+        const items = watchlist.items || [];
 
-          items.forEach((item) => {
-            const ticker = item?.ticker?.ticker;
-            if (!ticker) {
-              return;
-            }
+        items.forEach((item) => {
+          const ticker = item?.ticker?.ticker;
+          if (!ticker) {
+            return;
+          }
 
-            if (!nextMembershipMap[ticker]) {
-              nextMembershipMap[ticker] = [];
-            }
+          if (!nextMembershipMap[ticker]) {
+            nextMembershipMap[ticker] = [];
+          }
 
-            nextMembershipMap[ticker].push({
-              item_id: item.id,
-              watchlist_id: watchlist.id,
-              watchlist_name: watchlist.name,
-            });
+          nextMembershipMap[ticker].push({
+            item_id: item.id,
+            watchlist_id: watchlist.id,
+            watchlist_name: watchlist.name,
           });
-        })
-      );
+        });
+      });
 
       setWatchlists(userWatchlists);
       setMembershipMap(nextMembershipMap);

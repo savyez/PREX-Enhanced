@@ -712,11 +712,7 @@ def user_watchlists(request, user_id):
             status.HTTP_403_FORBIDDEN
         )
     
-    user = User.objects.filter(id=user_id).first()
-    if not user: 
-        return build_error_response('User not found.', status.HTTP_404_NOT_FOUND)
-    
-    watchlists = user.watchlists.all()
+    watchlists = request.user.watchlists.prefetch_related('items__ticker').all()
     if not watchlists:
         return Response({
             'success': True,
@@ -777,11 +773,7 @@ def add_coin_to_watchlist(request):
             status.HTTP_403_FORBIDDEN
         )
     
-    user = User.objects.filter(id=user_id).first()
-
-    if not user:
-        return build_error_response('User not found.', status.HTTP_404_NOT_FOUND)
-    
+    user = request.user
     watchlist_id = data['watchlist_id']
     
     watchlist = user.watchlists.filter(id=watchlist_id).first()
@@ -798,6 +790,7 @@ def add_coin_to_watchlist(request):
         return build_error_response('Coin is already in the watchlist.', status.HTTP_409_CONFLICT)
     
     watchlist.items.create(ticker=coin)
+    watchlist = user.watchlists.prefetch_related('items__ticker').get(id=watchlist_id)
     serializer = WatchlistSerializer(watchlist)
     return Response({
         'success': True,
@@ -821,11 +814,7 @@ def remove_coin_from_watchlist(request):
             status.HTTP_403_FORBIDDEN
         )
     
-    user = User.objects.filter(id=user_id).first()
-
-    if not user:
-        return build_error_response('User not found.', status.HTTP_404_NOT_FOUND)
-    
+    user = request.user
     watchlist_id = data['watchlist_id']
     
     watchlist = user.watchlists.filter(id=watchlist_id).first()
@@ -843,6 +832,7 @@ def remove_coin_from_watchlist(request):
         return build_error_response('Coin is not in the watchlist.', status.HTTP_404_NOT_FOUND)
     
     item.delete()
+    watchlist = user.watchlists.prefetch_related('items__ticker').get(id=watchlist_id)
     serializer = WatchlistSerializer(watchlist)
     return Response({
         'success': True,
@@ -923,10 +913,7 @@ def delete_watchlist(request, watchlist_id):
             status.HTTP_403_FORBIDDEN
         )
 
-    user = User.objects.filter(id=user_id).first()
-
-    if not user:
-        return build_error_response('User not found.', status.HTTP_404_NOT_FOUND)
+    user = request.user
 
     watchlist = user.watchlists.filter(id=watchlist_id).first()
     if not watchlist:

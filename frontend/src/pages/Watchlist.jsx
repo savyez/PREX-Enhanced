@@ -1,9 +1,9 @@
 import '../styles/page_style/watchlist.css';
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import Button from '../components/Button.jsx';
 import CreateWatchlistModal from '../modals/CreateWatchlistModal.jsx';
 import ConfirmationModal from '../modals/ConfirmationModal.jsx';
-import { getWatchlistItems, deleteWatchlist } from '../utils/api.js';
+import { deleteWatchlist } from '../utils/api.js';
 import { useAuth } from '../context/authContext.jsx';
 import { useAlert } from '../context/alertContext.jsx';
 import { useNavigate } from 'react-router-dom';
@@ -33,11 +33,8 @@ const getPriceChangeClass = (priceChange) => {
 
 function Watchlist() {
     const { user } = useAuth();
-    const { watchlists, refreshWatchlists, removeCoin } = useWatchlist();
-    const [loading, setLoading] = useState(false);
-    const [error, setError] = useState('');
+    const { watchlists, loading, error, refreshWatchlists, removeCoin } = useWatchlist();
     const [selectedWatchlistId, setSelectedWatchlistId] = useState('');
-    const [items, setItems] = useState([]);
     const [showCreateModal, setShowCreateModal] = useState(false);
     const [watchlistToDelete, setWatchlistToDelete] = useState(null);
     const [deleteLoading, setDeleteLoading] = useState(false);
@@ -53,43 +50,11 @@ function Watchlist() {
         return exists ? String(selectedWatchlistId) : String(watchlists[0]?.id || '');
     }, [watchlists, selectedWatchlistId]);
 
-    const displayedItems = activeWatchlistId ? items : [];
-
-    useEffect(() => {
-        if (!activeWatchlistId) {
-            return;
-        }
-
-        let isSubscribed = true;
-        const fetchItems = async () => {
-            setLoading(true);
-            setError('');
-
-            try {
-                const data = await getWatchlistItems(activeWatchlistId);
-                if (isSubscribed) {
-                    setItems(data.items || []);
-                }
-            } catch (err) {
-                if (isSubscribed) {
-                    setError(err.message);
-                }
-            } finally {
-                if (isSubscribed) {
-                    setLoading(false);
-                }
-            }
-        };
-
-        fetchItems();
-        return () => {
-            isSubscribed = false;
-        };
-    }, [activeWatchlistId]);
-
     const selectedWatchlist = watchlists.find(
         (watchlist) => String(watchlist.id) === activeWatchlistId
     );
+
+    const displayedItems = selectedWatchlist?.items || [];
 
     const handleCreateWatchlistSuccess = async (newWatchlist) => {
         await refreshWatchlists();
@@ -120,8 +85,6 @@ function Watchlist() {
 
         try {
             await removeCoin(coinToRemove.ticker.ticker, selectedWatchlist.id);
-            const data = await getWatchlistItems(selectedWatchlist.id);
-            setItems(data.items || []);
             showAlert(`Removed ${coinToRemove.ticker.coin_name} from ${selectedWatchlist.name}`, 'success');
             setCoinToRemove(null);
         } catch (err) {

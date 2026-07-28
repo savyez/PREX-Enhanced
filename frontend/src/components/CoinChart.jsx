@@ -12,7 +12,7 @@ const normalizeChartPoints = (points = []) =>
 
 const getCoinChartKey = (coin) => coin?.ticker || coin?.coin_name || '';
 
-function CoinChart({ coin, height = 84, showAxes = false, hidden = false }) {
+function CoinChart({ coin, height = 84, showAxes = false }) {
     const [chartData, setChartData] = useState([]);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
@@ -20,8 +20,7 @@ function CoinChart({ coin, height = 84, showAxes = false, hidden = false }) {
     useEffect(() => {
         let isActive = true;
 
-        if (!coin || hidden) {
-            // Hidden charts do not need to fetch trend data.
+        if (!coin) {
             return () => {
                 isActive = false;
             };
@@ -54,7 +53,7 @@ function CoinChart({ coin, height = 84, showAxes = false, hidden = false }) {
         return () => {
             isActive = false;
         };
-    }, [coin, hidden]);
+    }, [coin]);
 
     if (!coin) {
         return null;
@@ -65,8 +64,8 @@ function CoinChart({ coin, height = 84, showAxes = false, hidden = false }) {
             className="coin-sparkline"
             ariaLabel={`${coin.coin_name || coin.ticker} price trend`}
             data={chartData}
-            loading={hidden ? false : loading}
-            error={hidden ? null : error}
+            loading={loading}
+            error={error}
             chartId={getCoinChartKey(coin)}
             height={height}
             compact={height <= 84}

@@ -504,3 +504,45 @@ class ApiIntegrationTests(APITestCase):
         )
         self.assertEqual(response.status_code, 403)
         self.assertEqual(response.data['error'], "You do not have permission to modify this user's watchlists.")
+
+    def test_user_watchlists_returns_nested_items(self):
+        user = self.create_user('karen', 'karen@example.com', 'Password123!', email_confirmed=True)
+        coin1 = Coin.objects.create(
+            ticker='BTC',
+            coin_name='Bitcoin',
+            price='65000.00000000',
+            market_volume='20000000000.00',
+            last_updated_at=timezone.now(),
+        )
+        coin2 = Coin.objects.create(
+            ticker='ETH',
+            coin_name='Ethereum',
+            price='3500.00000000',
+            market_volume='10000000000.00',
+            last_updated_at=timezone.now(),
+        )
+        watchlist1 = Watchlist.objects.create(user=user, name='Main')
+        watchlist2 = Watchlist.objects.create(user=user, name='Alt')
+        WatchlistItem.objects.create(watchlist=watchlist1, ticker=coin1)
+        WatchlistItem.objects.create(watchlist=watchlist1, ticker=coin2)
+
+        self.authenticate_user('karen', 'karen@example.com', 'Password123!')
+
+        response = self.client.get(
+            reverse('user_watchlists', kwargs={'user_id': str(user.id)})
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.data['success'])
+        self.assertEqual(len(response.data['watchlists']), 2)
+
+        main_watchlist = next(w for w in response.data['watchlists'] if w['id'] == watchlist1.id)
+        self.assertIn('items', main_watchlist)
+        self.assertEqual(len(main_watchlist['items']), 2)
+        tickers = [item['ticker']['ticker'] for item in main_watchlist['items']]
+        self.assertIn('BTC', tickers)
+        self.assertIn('ETH', tickers)
+
+        alt_watchlist = next(w for w in response.data['watchlists'] if w['id'] == watchlist2.id)
+        self.assertIn('items', alt_watchlist)
+        self.assertEqual(len(alt_watchlist['items']), 0)
+
