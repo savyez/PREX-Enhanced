@@ -82,7 +82,7 @@ const Search = () => {
   const [error, setError] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(0);
-  const { membershipMap, loading: watchlistLoading, removeCoin, refreshWatchlists } = useWatchlist();
+  const { membershipMap, loading: watchlistLoading, removeCoin } = useWatchlist();
   const [watchlistLoadingLocal, setWatchlistLoadingLocal] = useState(false);
   const [selectedWatchlistCoin, setSelectedWatchlistCoin] = useState(null);
   const [showWatchlistSelector, setShowWatchlistSelector] = useState(false);
@@ -165,7 +165,6 @@ const Search = () => {
     setWatchlistLoadingLocal(true);
     try {
       await removeCoin(coinToRemove.ticker, removeWatchlist.id);
-      await refreshWatchlists();
       showAlert(`${coinToRemove.coin_name} removed from ${removeWatchlist.name}.`, 'success');
     } catch (err) {
       showAlert(err.message || 'Failed to remove from watchlist.', 'error');
@@ -182,7 +181,6 @@ const Search = () => {
 
   const handleWatchlistSelectorSuccess = async () => {
     setShowWatchlistSelector(false);
-    await refreshWatchlists();
     if (selectedWatchlistCoin) {
       showAlert(`${selectedWatchlistCoin.coin_name} added to your watchlist.`, 'success');
     }
@@ -197,7 +195,6 @@ const Search = () => {
     setWatchlistLoadingLocal(true);
     try {
       await removeCoin(selectedWatchlistCoin.ticker, membership.watchlist_id);
-      await refreshWatchlists();
       showAlert(`${selectedWatchlistCoin.coin_name} removed from ${membership.watchlist_name}.`, 'success');
     } catch (err) {
       showAlert(err.message || 'Failed to remove from watchlist.', 'error');
