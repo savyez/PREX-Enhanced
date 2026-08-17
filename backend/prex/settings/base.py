@@ -180,6 +180,22 @@ validate_required({
     'DB_HOST': DATABASES['default']['HOST'],
 })
 
+# Cache Configuration
+REDIS_CACHE_URL = config('REDIS_CACHE_URL', default=config('CELERY_BROKER_URL', default='redis://127.0.0.1:6379/0'))
+if REDIS_CACHE_URL:
+    CACHES = {
+        'default': {
+            'BACKEND': 'django.core.cache.backends.redis.RedisCache',
+            'LOCATION': REDIS_CACHE_URL,
+        }
+    }
+else:
+    CACHES = {
+        'default': {
+            'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+        }
+    }
+
 # Celery Configuration
 CELERY_BROKER_URL = config('CELERY_BROKER_URL')
 CELERY_RESULT_BACKEND = config('CELERY_RESULT_BACKEND')
@@ -187,6 +203,7 @@ CELERY_ACCEPT_CONTENT = ['json']
 CELERY_TASK_SERIALIZER = 'json'
 CELERY_RESULT_SERIALIZER = 'json'
 CELERY_TIMEZONE = 'Asia/Kolkata'
+CELERY_TASK_ALWAYS_EAGER = config('CELERY_TASK_ALWAYS_EAGER', cast=bool, default=False)
 
 # Celery Beat Schedule
 CELERY_BEAT_SCHEDULE = {

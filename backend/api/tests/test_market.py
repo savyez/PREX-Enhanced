@@ -1,13 +1,12 @@
 from unittest.mock import patch
 from django.urls import reverse
 from django.utils import timezone
-from rest_framework.test import APITestCase
-
+from .base import BaseAPITestCase
 from ..models import Coin
 from .. import views
 
 
-class MarketCoinListTests(APITestCase):
+class MarketCoinListTests(BaseAPITestCase):
     """Test suite for coin list retrieval and pagination."""
 
     def test_coin_list_returns_paginated_local_coins(self):
@@ -32,7 +31,7 @@ class MarketCoinListTests(APITestCase):
         self.assertEqual(response2.data, response1.data)
 
 
-class MarketSearchTests(APITestCase):
+class MarketSearchTests(BaseAPITestCase):
     """Test suite for coin search and CoinGecko ID resolution."""
 
     def test_search_coins_by_name(self):
@@ -77,7 +76,7 @@ class MarketSearchTests(APITestCase):
         self.assertEqual(resolved_by_name, 'wrapped-bitcoin')
 
 
-class MarketChartTests(APITestCase):
+class MarketChartTests(BaseAPITestCase):
     """Test suite for historical price chart endpoints."""
 
     @patch('api.views.fetch_coingecko', side_effect=views.CoinGeckoTimeout)
@@ -92,7 +91,7 @@ class MarketChartTests(APITestCase):
         fetch_mock.assert_called_once()
 
 
-class MarketCeleryTaskTests(APITestCase):
+class MarketCeleryTaskTests(BaseAPITestCase):
     """Test suite for asynchronous Celery market synchronization tasks."""
 
     @patch('api.tasks.fetch_coingecko')

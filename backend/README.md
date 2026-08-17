@@ -28,6 +28,7 @@ backend/
 │   │   └── test_system.py      System endpoint & OpenAPI schema tests
 │   ├── models.py         User, Coin, Watchlist and WatchlistItem models
 │   ├── serializers.py    API response serializers
+│   ├── tasks.py          Celery background tasks (market sync, email delivery)
 │   └── urls.py           Versioned API routes
 ├── prex/
 │   ├── settings/         local, shared and production settings
@@ -125,6 +126,17 @@ Authorization: Bearer <access-token>
 ```
 
 The logout endpoint requires authentication and only blacklists a refresh token when its `user_id` matches the authenticated user. Refresh tokens are rotated/blacklisted according to the Simple JWT settings.
+
+## Background Tasks & Celery Workers
+
+Asynchronous operations are managed via Celery and Redis (`api/tasks.py`):
+
+- **Asynchronous Email Delivery**:
+  - `send_verification_email_task`: Background task for account verification email dispatching with automatic retries (up to 3 attempts, 30s delay).
+  - `send_password_reset_email_task`: Background task for password reset instruction email dispatching with automatic retries.
+  - Prevents SMTP network latency from blocking user HTTP registration and password reset requests.
+- **Cryptocurrency Market Synchronization**:
+  - `sync_coingecko_market_data`: Periodic beat task (every 5 minutes) batch-updating local coin prices and 24h metrics from CoinGecko.
 
 ## External API Behavior
 

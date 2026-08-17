@@ -1,9 +1,14 @@
 from django.conf import settings
+from django.test import override_settings
 from django.urls import reverse
 from rest_framework.test import APITestCase
 from ..models import User
 
 
+@override_settings(
+    CELERY_TASK_ALWAYS_EAGER=True,
+    CACHES={'default': {'BACKEND': 'django.core.cache.backends.locmem.LocMemCache'}},
+)
 class BaseAPITestCase(APITestCase):
     """Base test case providing user creation and authentication test utilities."""
 

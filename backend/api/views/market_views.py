@@ -35,12 +35,20 @@ class CoinListView(APIView):
         page, page_size = get_pagination_params(request)
         cache_key = f"coin_list_page_{page}_size_{page_size}"
         cached_data = cache.get(cache_key)
-        if cached_data is not None:
+        if cached_data is not None and cached_data.get('results'):
             return Response(cached_data)
 
         coins = Coin.objects.all().order_by('market_cap_rank', 'ticker')
+        if not coins.exists():
+            try:
+                from ..tasks import sync_coingecko_market_data
+                sync_coingecko_market_data()
+                coins = Coin.objects.all().order_by('market_cap_rank', 'ticker')
+            except Exception:
+                pass
+
         response = build_paginated_response(CoinSerializer, coins, page, page_size)
-        if response.status_code == 200:
+        if response.status_code == 200 and response.data.get('results'):
             cache.set(cache_key, response.data, timeout=300)
         return response
 

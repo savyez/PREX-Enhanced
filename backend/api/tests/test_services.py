@@ -70,3 +70,17 @@ class EmailServiceTests(BaseAPITestCase):
 
         smtp_instance.login.assert_called_once()
         smtp_instance.send_message.assert_called_once()
+
+    @override_settings(EMAIL_HOST_USER='test@example.com', EMAIL_HOST_PASSWORD='password')
+    @patch('api.services.email_service.EmailService.send_verification_email')
+    def test_send_verification_email_task_execution(self, email_mock):
+        from ..tasks import send_verification_email_task
+        send_verification_email_task.apply(args=['alice@example.com', 'alice', 'http://example.com/verify'])
+        email_mock.assert_called_once_with('alice@example.com', 'alice', 'http://example.com/verify')
+
+    @override_settings(EMAIL_HOST_USER='test@example.com', EMAIL_HOST_PASSWORD='password')
+    @patch('api.services.email_service.EmailService.send_password_reset_email')
+    def test_send_password_reset_email_task_execution(self, email_mock):
+        from ..tasks import send_password_reset_email_task
+        send_password_reset_email_task.apply(args=['bob@example.com', 'bob', 'http://example.com/reset'])
+        email_mock.assert_called_once_with('bob@example.com', 'bob', 'http://example.com/reset')

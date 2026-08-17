@@ -1,3 +1,4 @@
+import logging
 import smtplib
 from datetime import timedelta
 
@@ -10,7 +11,10 @@ from rest_framework_simplejwt.tokens import RefreshToken
 
 from ..helpers import get_signed_payload, normalize_email_value, normalize_username_value
 from ..models import User
+from ..tasks import send_password_reset_email_task, send_verification_email_task
 from .email_service import EmailService
+
+logger = logging.getLogger(__name__)
 
 
 class AuthenticationServiceError(Exception):
@@ -85,12 +89,12 @@ class AuthService:
                     reverse('verify_email', kwargs={'token': token})
                 )
                 try:
-                    print(f"Sending Re-Verification mail to {existing_user.email}")
-                    EmailService.send_verification_email(existing_user.email, existing_user.username, verification_url)
-                    print(f"Re-verification mail sent to {existing_user.email}")
-                except smtplib.SMTPException as error:
+                    logger.info("Resending verification email to %s", existing_user.email)
+                    send_verification_email_task.delay(existing_user.email, existing_user.username, verification_url)
+                except Exception as error:
+                    logger.error("Failed to queue re-verification email to %s: %s", existing_user.email, error)
                     raise AuthenticationServiceError(
-                        f'Could not send verification email: {error}',
+                        f'Could not queue verification email: {error}',
                         status_code=502
                     ) from error
 
@@ -117,13 +121,13 @@ class AuthService:
         )
 
         try:
-            print(f"Sending Verification mail to {norm_email}")
-            EmailService.send_verification_email(norm_email, norm_username, verification_url)
-            print(f"Verification mail sent to {norm_email}")
-        except smtplib.SMTPException as error:
+            logger.info("Sending verification email to %s", norm_email)
+            send_verification_email_task.delay(norm_email, norm_username, verification_url)
+        except Exception as error:
             user.delete()
+            logger.error("Failed to queue verification email to %s: %s", norm_email, error)
             raise AuthenticationServiceError(
-                f'Could not send verification email: {error}',
+                f'Could not queue verification email: {error}',
                 status_code=502
             ) from error
 
@@ -155,6 +159,7 @@ class AuthService:
         user.email_confirmed = True
         user.updated_at = timezone.now()
         user.save(update_fields=['email_confirmed', 'updated_at'])
+        logger.info("Email verified successfully for %s", user.email)
         return user, False
 
     @classmethod
@@ -175,6 +180,7 @@ class AuthService:
         refresh = RefreshToken.for_user(user)
         user.last_login = timezone.now()
         user.save(update_fields=['last_login'])
+        logger.info("User %s authenticated successfully", norm_email)
 
         return user, str(refresh.access_token), str(refresh)
 
@@ -200,11 +206,11 @@ class AuthService:
             )
 
         try:
-            print(f"Sending Password reset mail to {norm_email}")
-            EmailService.send_password_reset_email(norm_email, user.username, reset_url)
-            print(f"Password reset mail sent to {norm_email}")
-        except smtplib.SMTPException as error:
-            raise AuthenticationServiceError('Failed to send password reset email.', status_code=502) from error
+            logger.info("Sending password reset email to %s", norm_email)
+            send_password_reset_email_task.delay(norm_email, user.username, reset_url)
+        except Exception as error:
+            logger.error("Failed to queue password reset email to %s: %s", norm_email, error)
+            raise AuthenticationServiceError('Failed to queue password reset email.', status_code=502) from error
 
         return f'Password reset instructions sent to {norm_email}.'
 

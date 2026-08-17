@@ -1,3 +1,4 @@
+import logging
 import requests
 from celery import shared_task
 from django.conf import settings
@@ -7,6 +8,41 @@ from django.utils import timezone
 
 from .models import Coin
 from .services.coingecko import fetch_coingecko, CoinGeckoTimeout
+from .services.email_service import EmailService
+
+logger = logging.getLogger(__name__)
+
+
+@shared_task(
+    bind=True,
+    max_retries=3,
+    default_retry_delay=30,
+)
+def send_verification_email_task(self, email, username, verification_url):
+    """
+    Background task to render and send account verification emails.
+    Retries up to 3 times with exponential backoff on SMTP/network failures.
+    """
+    try:
+        EmailService.send_verification_email(email, username, verification_url)
+    except Exception as exc:
+        raise self.retry(exc=exc)
+
+
+@shared_task(
+    bind=True,
+    max_retries=3,
+    default_retry_delay=30,
+)
+def send_password_reset_email_task(self, email, username, reset_url):
+    """
+    Background task to render and send password reset emails.
+    Retries up to 3 times with exponential backoff on SMTP/network failures.
+    """
+    try:
+        EmailService.send_password_reset_email(email, username, reset_url)
+    except Exception as exc:
+        raise self.retry(exc=exc)
 
 
 @shared_task(
@@ -95,7 +131,7 @@ def sync_coingecko_market_data(self):
     try:
         cache.clear()
     except Exception as cache_err:
-        print(f"Failed to clear cache after market sync: {cache_err}")
+        logger.warning("Failed to clear cache after market sync: %s", cache_err)
 
     return {
         "status": "success",
