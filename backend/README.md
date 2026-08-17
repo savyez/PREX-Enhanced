@@ -149,6 +149,5 @@ The public load-balancer health check should use:
 
 ## Current Limitations
 
-- JWTs are handled by the frontend through browser storage; an HttpOnly cookie-based session design would reduce token exposure to XSS.
 - Rate limiting, centralized observability, background email delivery and provider-failure alerting are not yet implemented.
 - PostgreSQL backup/restore procedures, deployment manifests and CI/CD configuration are maintained outside this backend directory and should be added before a larger production rollout.

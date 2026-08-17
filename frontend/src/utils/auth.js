@@ -1,8 +1,11 @@
+import { getAccessToken, clearAccessToken } from './api';
+
 const isAuthenticated = () => {
-  return !!localStorage.getItem("access_token");
+  return !!getAccessToken();
 };
 
 const clearAuth = () => {
+  clearAccessToken();
   localStorage.removeItem("access_token");
   localStorage.removeItem("refresh_token");
   localStorage.removeItem("user");
@@ -17,7 +20,6 @@ const getUser = () => {
 
   try {
     return JSON.parse(user);
-
   } catch {
     clearAuth();
     return null;

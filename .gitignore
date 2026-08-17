@@ -294,6 +294,7 @@ web_modules/
 .env
 .env.*
 !.env.example
+.env.docker
 
 # parcel-bundler cache (https://parceljs.org/)
 .cache

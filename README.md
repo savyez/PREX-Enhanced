@@ -204,7 +204,6 @@ These are simple next steps for improving the project:
 - Add a CI/CD workflow that runs the frontend lint/build and backend tests automatically.
 - Add a clear deployment setup, such as Docker or a hosting-platform configuration.
 - Add more tests for login, expired tokens, watchlists and important user journeys.
-- Replace browser `localStorage` tokens with a safer HttpOnly cookie session design.
 - Add basic monitoring so API, email and CoinGecko failures are easier to find.
 - Improve the UI with more accessibility and keyboard-navigation checks.
 - Add an AI assistant that explains a coin’s recent seven-day trend in plain language and answers questions about the user’s watchlists. Any AI feature should use protected API keys, clear disclaimers and rate limits.

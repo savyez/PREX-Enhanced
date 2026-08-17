@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { clearAuth, getUser } from '../utils/auth';
-import { getCurrentUser, logout as revokeSession } from '../utils/api';
+import { clearAuth } from '../utils/auth';
+import { clearAccessToken, getCurrentUser, logout as revokeSession, refreshAccessToken, setAccessToken } from '../utils/api';
 
 const AuthContext = createContext();
 
@@ -13,25 +13,21 @@ export const AuthProvider = ({ children }) => {
   const initialized = useRef(false);
 
   const clearSession = useCallback(() => {
+    clearAccessToken();
     clearAuth();
     setAuthenticated(false);
     setUser(null);
   }, []);
 
-  const login = useCallback((accessToken, refreshToken, userInfo) => {
-    localStorage.setItem('access_token', accessToken);
-    localStorage.setItem('refresh_token', refreshToken);
-    localStorage.setItem('user', JSON.stringify(userInfo));
+  const login = useCallback((accessToken, userInfo) => {
+    setAccessToken(accessToken);
     setAuthenticated(true);
     setUser(userInfo);
   }, []);
 
   const logout = useCallback(async () => {
-    const refreshToken = localStorage.getItem('refresh_token');
     try {
-      if (refreshToken) {
-        await revokeSession(refreshToken);
-      }
+      await revokeSession();
     } catch {
       // Local logout is complete even when server-side revocation is unavailable.
     } finally {
@@ -40,7 +36,6 @@ export const AuthProvider = ({ children }) => {
   }, [clearSession]);
 
   const updateUser = useCallback((updatedUser) => {
-    localStorage.setItem('user', JSON.stringify(updatedUser));
     setUser(updatedUser);
   }, []);
 
@@ -48,16 +43,14 @@ export const AuthProvider = ({ children }) => {
     let active = true;
 
     const restoreSession = async () => {
-      if (!localStorage.getItem('refresh_token') && !localStorage.getItem('access_token')) {
-        initialized.current = true;
-        setLoading(false);
-        return;
-      }
-
       try {
+        const accessToken = await refreshAccessToken();
+        if (!active) return;
+        setAccessToken(accessToken);
+
         const response = await getCurrentUser();
         if (active) {
-          updateUser(response.user);
+          setUser(response.user);
           setAuthenticated(true);
         }
       } catch {
@@ -76,7 +69,7 @@ export const AuthProvider = ({ children }) => {
     return () => {
       active = false;
     };
-  }, [clearSession, updateUser]);
+  }, [clearSession]);
 
   useEffect(() => {
     const handleAuthenticationFailure = () => {
@@ -90,20 +83,10 @@ export const AuthProvider = ({ children }) => {
       }
     };
 
-    const handleStorageChange = (event) => {
-      if (event.key === 'access_token' || event.key === 'refresh_token' || event.key === 'user') {
-        if (!localStorage.getItem('access_token') || !getUser()) {
-          clearSession();
-        }
-      }
-    };
-
     window.addEventListener('authfailure', handleAuthenticationFailure);
-    window.addEventListener('storage', handleStorageChange);
 
     return () => {
       window.removeEventListener('authfailure', handleAuthenticationFailure);
-      window.removeEventListener('storage', handleStorageChange);
     };
   }, [authenticated, clearSession, navigate]);
 

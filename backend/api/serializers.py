@@ -48,11 +48,16 @@ class PasswordResetConfirmRequestSerializer(serializers.Serializer):
 
 
 class RefreshTokenRequestSerializer(serializers.Serializer):
-    refresh_token = serializers.CharField(trim_whitespace=True)
+    refresh_token = serializers.CharField(required=False, allow_blank=True, trim_whitespace=True)
 
 
 class TokenRefreshRequestSerializer(serializers.Serializer):
-    refresh = serializers.CharField(trim_whitespace=True)
+    refresh = serializers.CharField(required=False, allow_blank=True, trim_whitespace=True)
+
+
+class TokenRefreshResponseSerializer(serializers.Serializer):
+    access = serializers.CharField()
+    access_token = serializers.CharField()
 
 
 class WatchlistNameRequestSerializer(serializers.Serializer):
@@ -119,7 +124,7 @@ class TokenResponseSerializer(serializers.Serializer):
     success = serializers.BooleanField()
     message = serializers.CharField()
     access_token = serializers.CharField()
-    refresh_token = serializers.CharField()
+    refresh_token = serializers.CharField(required=False, allow_blank=True)
     user = UserSerializer()
 
 

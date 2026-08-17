@@ -112,9 +112,17 @@ SPECTACULAR_SETTINGS = {
 SIMPLE_JWT = {
     'ACCESS_TOKEN_LIFETIME': timedelta(minutes=15),
     'REFRESH_TOKEN_LIFETIME': timedelta(days=7),
-    'AUTH_HEADER_TYPES': ('Bearer',),
+    'ROTATE_REFRESH_TOKENS': True,
     'BLACKLIST_AFTER_ROTATION': True,
+    'AUTH_HEADER_TYPES': ('Bearer',),
 }
+
+# Cookie & Session Security Settings for JWT Authentication
+AUTH_COOKIE_REFRESH_NAME = 'refresh_token'
+AUTH_COOKIE_SECURE = config('AUTH_COOKIE_SECURE', cast=bool, default=False)
+AUTH_COOKIE_SAMESITE = config('AUTH_COOKIE_SAMESITE', default='Lax')
+AUTH_COOKIE_PATH = config('AUTH_COOKIE_PATH', default='/api/v1/')
+CORS_ALLOW_CREDENTIALS = True
 
 PASSWORD_HASHERS = [
     'django.contrib.auth.hashers.BCryptSHA256PasswordHasher',

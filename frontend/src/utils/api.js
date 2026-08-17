@@ -1,4 +1,5 @@
 let refreshPromise = null;
+let inMemoryAccessToken = null;
 
 const configuredApiBaseUrl = import.meta.env.VITE_API_BASE_URL?.trim();
 const API_BASE_URL = configuredApiBaseUrl || 'http://127.0.0.1:8000/api/v1';
@@ -10,6 +11,17 @@ export class AuthenticationError extends Error {
     this.name = 'AuthenticationError';
   }
 }
+
+// In-memory access token getter / setter / clearer
+const setAccessToken = (token) => {
+  inMemoryAccessToken = token || null;
+};
+
+const getAccessToken = () => inMemoryAccessToken;
+
+const clearAccessToken = () => {
+  inMemoryAccessToken = null;
+};
 
 // React owns session state and navigation; the API layer only reports an expired session.
 const notifyAuthenticationFailure = () => {
@@ -23,9 +35,9 @@ const buildUrl = (path) => {
 };
 
 
-// Get authorization headers with the current access token
+// Get authorization headers with the in-memory access token
 const getAuthHeaders = () => {
-  const accessToken = localStorage.getItem('access_token');
+  const accessToken = getAccessToken();
   return accessToken ? { Authorization: `Bearer ${accessToken}` } : {};
 };
 
@@ -47,6 +59,7 @@ const apiFetch = async (path, options = {}, retry = true) => {
 
   const response = await fetch(buildUrl(path), {
     ...fetchOptions,
+    credentials: 'include',
     headers,
   });
 
@@ -55,12 +68,7 @@ const apiFetch = async (path, options = {}, retry = true) => {
     ? await response.json()
     : null;
 
-  if (
-    retry &&
-    auth &&
-    localStorage.getItem('refresh_token') &&
-    response.status === 401
-  ) {
+  if (retry && auth && response.status === 401) {
     try {
       await refreshAccessToken();
       return apiFetch(path, options, false);
@@ -93,7 +101,7 @@ const apiAuth = async (path, options = {}) => apiFetch(path, {
   auth: true,
 });
 
-// Refresh access token using the refresh token
+// Refresh access token silently using the HttpOnly refresh token cookie
 const refreshAccessToken = async () => {
   if (refreshPromise) {
     return refreshPromise;
@@ -101,37 +109,33 @@ const refreshAccessToken = async () => {
 
   refreshPromise = (async () => {
     try {
-      const refresh = localStorage.getItem('refresh_token');
-
-      if (!refresh) {
-        throw new AuthenticationError('No refresh token');
-      }
-
       const response = await fetch(buildUrl('/token/refresh/'), {
         method: 'POST',
+        credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ refresh }),
+        body: JSON.stringify({}),
       });
 
       if (!response.ok) {
-        throw new AuthenticationError();
+        clearAccessToken();
+        throw new AuthenticationError('Session expired. Please sign in again.');
       }
 
       const data = await response.json();
+      const accessToken = data?.access_token || data?.access;
 
-      if (!data.access) {
+      if (!accessToken) {
+        clearAccessToken();
         throw new AuthenticationError('Invalid refresh response');
       }
 
-      localStorage.setItem('access_token', data.access);
-
-      if (data.refresh) {
-        localStorage.setItem('refresh_token', data.refresh);
-      }
-
-      return data.access;
+      setAccessToken(accessToken);
+      return accessToken;
+    } catch (error) {
+      clearAccessToken();
+      throw error;
     } finally {
       refreshPromise = null;
     }
@@ -159,14 +163,16 @@ const register = (userData) => (
 );
 
 
-// Note: The logout function is currently unused, but it's included here for completeness and future use.
-const logout = (refreshToken = localStorage.getItem('refresh_token')) =>
-  apiAuth('/logout/', {
-    method: 'POST',
-    body: JSON.stringify({
-      refresh_token: refreshToken,
-    }),
-  });
+const logout = async () => {
+  try {
+    return await apiAuth('/logout/', {
+      method: 'POST',
+      body: JSON.stringify({}),
+    });
+  } finally {
+    clearAccessToken();
+  }
+};
 
 
 // Fetch list of coins from the API
@@ -259,6 +265,10 @@ const chart_data = (coinId, days) => apiNoAuth(`/coins/${encodeURIComponent(coin
 
 
 export { 
+  setAccessToken,
+  getAccessToken,
+  clearAccessToken,
+  refreshAccessToken,
   apiFetch, 
   apiNoAuth,
   apiAuth,

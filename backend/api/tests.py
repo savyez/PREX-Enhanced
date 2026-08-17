@@ -33,7 +33,11 @@ class ApiIntegrationTests(APITestCase):
         self.assertEqual(response.status_code, 200)
         token = response.data['access_token']
         self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {token}')
-        return response.data
+        data = dict(response.data)
+        cookie_name = getattr(settings, 'AUTH_COOKIE_REFRESH_NAME', 'refresh_token')
+        if cookie_name in response.cookies:
+            data['refresh_token'] = response.cookies[cookie_name].value
+        return data
 
     @override_settings(EMAIL_HOST_USER='user@example.com', EMAIL_HOST_PASSWORD='password')
     @patch('api.views.smtplib.SMTP')
@@ -139,7 +143,11 @@ class ApiIntegrationTests(APITestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertIn('access_token', response.data)
-        self.assertIn('refresh_token', response.data)
+        cookie_name = getattr(settings, 'AUTH_COOKIE_REFRESH_NAME', 'refresh_token')
+        self.assertIn(cookie_name, response.cookies)
+        cookie = response.cookies[cookie_name]
+        self.assertTrue(cookie['httponly'])
+        self.assertEqual(cookie['samesite'], 'Lax')
         self.assertEqual(response.data['user']['email'], 'fay@example.com')
 
     def test_expired_access_token_is_rejected(self):
@@ -545,4 +553,102 @@ class ApiIntegrationTests(APITestCase):
         alt_watchlist = next(w for w in response.data['watchlists'] if w['id'] == watchlist2.id)
         self.assertIn('items', alt_watchlist)
         self.assertEqual(len(alt_watchlist['items']), 0)
+
+    def test_token_refresh_via_httponly_cookie(self):
+        self.create_user('refreshuser', 'refreshuser@example.com', 'Password123!', email_confirmed=True)
+
+        login_response = self.client.post(
+            reverse('login_user'),
+            data={'username': 'refreshuser', 'email': 'refreshuser@example.com', 'password': 'Password123!'},
+            format='json'
+        )
+        self.assertEqual(login_response.status_code, 200)
+        cookie_name = getattr(settings, 'AUTH_COOKIE_REFRESH_NAME', 'refresh_token')
+        self.assertIn(cookie_name, self.client.cookies)
+
+        # Clear authorization header to ensure refresh depends on the cookie
+        self.client.credentials()
+
+        refresh_response = self.client.post(reverse('token_refresh'), data={}, format='json')
+        self.assertEqual(refresh_response.status_code, 200)
+        self.assertIn('access_token', refresh_response.data)
+        self.assertIn('access', refresh_response.data)
+        new_access_token = refresh_response.data['access_token']
+
+        # Verify access token works on authenticated endpoint
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {new_access_token}')
+        user_response = self.client.get(reverse('current_user'))
+        self.assertEqual(user_response.status_code, 200)
+        self.assertEqual(user_response.data['user']['email'], 'refreshuser@example.com')
+
+    def test_token_refresh_via_request_body(self):
+        self.create_user('bodyuser', 'bodyuser@example.com', 'Password123!', email_confirmed=True)
+
+        login_response = self.client.post(
+            reverse('login_user'),
+            data={'username': 'bodyuser', 'email': 'bodyuser@example.com', 'password': 'Password123!'},
+            format='json'
+        )
+        self.assertEqual(login_response.status_code, 200)
+        cookie_name = getattr(settings, 'AUTH_COOKIE_REFRESH_NAME', 'refresh_token')
+        refresh_token = login_response.cookies[cookie_name].value
+
+        # Clear cookies so refresh only comes from body
+        self.client.cookies.clear()
+        self.client.credentials()
+
+        refresh_response = self.client.post(
+            reverse('token_refresh'),
+            data={'refresh': refresh_token},
+            format='json'
+        )
+        self.assertEqual(refresh_response.status_code, 200)
+        self.assertIn('access_token', refresh_response.data)
+
+    def test_token_refresh_without_token_returns_401(self):
+        self.client.cookies.clear()
+        self.client.credentials()
+
+        response = self.client.post(reverse('token_refresh'), data={}, format='json')
+        self.assertEqual(response.status_code, 401)
+
+    def test_token_refresh_with_invalid_cookie_returns_401(self):
+        cookie_name = getattr(settings, 'AUTH_COOKIE_REFRESH_NAME', 'refresh_token')
+        self.client.cookies[cookie_name] = 'invalid-token'
+        self.client.credentials()
+
+        response = self.client.post(reverse('token_refresh'), data={}, format='json')
+        self.assertEqual(response.status_code, 401)
+
+    def test_logout_clears_httponly_cookie_and_blacklists_token(self):
+        user = self.create_user('logoutuser', 'logoutuser@example.com', 'Password123!', email_confirmed=True)
+        login_response = self.client.post(
+            reverse('login_user'),
+            data={'username': 'logoutuser', 'email': 'logoutuser@example.com', 'password': 'Password123!'},
+            format='json'
+        )
+        self.assertEqual(login_response.status_code, 200)
+        access_token = login_response.data['access_token']
+        cookie_name = getattr(settings, 'AUTH_COOKIE_REFRESH_NAME', 'refresh_token')
+        raw_refresh_token = login_response.cookies[cookie_name].value
+
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {access_token}')
+        logout_response = self.client.post(reverse('logout_user'), data={}, format='json')
+        self.assertEqual(logout_response.status_code, 200)
+        self.assertTrue(logout_response.data['success'])
+
+        # Check cookie was cleared / deleted
+        self.assertIn(cookie_name, logout_response.cookies)
+        deleted_cookie = logout_response.cookies[cookie_name]
+        self.assertTrue(deleted_cookie['max-age'] == 0 or deleted_cookie.value == '')
+
+        # Check the blacklisted refresh token cannot be used again
+        self.client.credentials()
+        self.client.cookies.clear()
+        refresh_response = self.client.post(
+            reverse('token_refresh'),
+            data={'refresh': raw_refresh_token},
+            format='json'
+        )
+        self.assertEqual(refresh_response.status_code, 401)
 

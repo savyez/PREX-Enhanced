@@ -107,11 +107,12 @@ Routes are lazy-loaded with `React.lazy` and rendered inside a shared `Suspense`
 
 ### Authentication
 
-- Login stores access token, refresh token and user data in browser `localStorage`.
-- The auth provider restores a saved session by calling `/current-user/`.
-- `api.js` retries an authenticated request once after refreshing an expired access token.
-- Failed authentication dispatches an `authfailure` event; the auth provider clears the session and redirects to `/login`.
-- Logout clears local data even if server-side refresh-token revocation fails.
+- Refresh tokens are stored securely in an `HttpOnly`, `SameSite=Lax`, `Secure` browser cookie set by Django.
+- Short-lived access tokens are kept purely in memory (React context and API client module state).
+- The auth provider restores a session on app reload via silent token refresh (`/token/refresh/`) using the HttpOnly cookie.
+- `api.js` retries an authenticated request once after silently refreshing an expired access token.
+- Failed authentication dispatches an `authfailure` event; the auth provider clears in-memory state and redirects to `/login`.
+- Logout revokes/blacklists the server-side refresh token and clears both the cookie and in-memory session.
 
 ### Watchlists
 
@@ -139,7 +140,7 @@ All frontend requests should go through `src/utils/api.js`. It provides helpers 
 - Watchlist CRUD and membership
 - Password-reset requests
 
-Authenticated requests automatically use the access token from `localStorage`. The API base URL is normalized so callers can use paths with or without a leading slash.
+Authenticated requests automatically use the in-memory access token. The API base URL is normalized so callers can use paths with or without a leading slash.
 
 For endpoint details and request/response examples, see [`../backend/APIs.md`](../backend/APIs.md).
 
@@ -195,6 +196,5 @@ The Vite configuration splits large vendor groups into separate chunks for React
 
 - Add component and end-to-end tests for login, token expiry, watchlists and alerts.
 - Improve keyboard focus handling and accessibility checks for modals and navigation.
-- Consider a safer HttpOnly cookie session strategy instead of browser `localStorage` tokens.
 - Add offline/stale-data behavior when the market-data provider is unavailable.
 - Add an AI-powered, plain-language explanation of a coin’s seven-day trend, with server-side key protection, rate limiting and clear financial disclaimers.

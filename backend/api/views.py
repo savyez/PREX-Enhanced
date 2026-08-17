@@ -10,6 +10,7 @@ from .serializers import (
     UserSerializer, CoinSerializer, WatchlistSerializer, WatchlistItemDetailSerializer,
     RegisterRequestSerializer, LoginRequestSerializer, ProfileUpdateRequestSerializer,
     EmailRequestSerializer, PasswordResetConfirmRequestSerializer, RefreshTokenRequestSerializer,
+    TokenRefreshRequestSerializer, TokenRefreshResponseSerializer,
     WatchlistNameRequestSerializer, WatchlistCoinRequestSerializer, UserScopedRequestSerializer,
     ErrorResponseSerializer, MessageResponseSerializer, TokenResponseSerializer,
     WatchlistResponseSerializer, WatchlistListResponseSerializer, WatchlistItemsResponseSerializer,
@@ -19,6 +20,7 @@ from django.core import signing
 from django.urls import reverse
 from django.conf import settings
 from django.utils import timezone
+from datetime import timedelta
 from email.message import EmailMessage
 from rest_framework import status
 from rest_framework.response import Response
@@ -27,10 +29,42 @@ from drf_spectacular.utils import OpenApiParameter, OpenApiResponse, extend_sche
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.exceptions import TokenError
+from rest_framework_simplejwt.views import TokenRefreshView
 from django.contrib.auth.password_validation import validate_password
 from django.template.loader import render_to_string
 from .paginations import get_pagination_params, build_paginated_response
 from .helpers import get_signed_payload, normalize_email_value, normalize_username_value
+
+def set_refresh_token_cookie(response, refresh_token):
+    """Sets the refresh token in an HttpOnly, SameSite cookie."""
+    cookie_name = getattr(settings, 'AUTH_COOKIE_REFRESH_NAME', 'refresh_token')
+    cookie_secure = getattr(settings, 'AUTH_COOKIE_SECURE', not settings.DEBUG)
+    cookie_samesite = getattr(settings, 'AUTH_COOKIE_SAMESITE', 'Lax')
+    cookie_path = getattr(settings, 'AUTH_COOKIE_PATH', '/api/v1/')
+    max_age = int(settings.SIMPLE_JWT.get('REFRESH_TOKEN_LIFETIME', timedelta(days=7)).total_seconds())
+
+    response.set_cookie(
+        key=cookie_name,
+        value=str(refresh_token),
+        max_age=max_age,
+        httponly=True,
+        secure=cookie_secure,
+        samesite=cookie_samesite,
+        path=cookie_path,
+    )
+
+
+def clear_refresh_token_cookie(response):
+    """Clears the refresh token HttpOnly cookie."""
+    cookie_name = getattr(settings, 'AUTH_COOKIE_REFRESH_NAME', 'refresh_token')
+    cookie_samesite = getattr(settings, 'AUTH_COOKIE_SAMESITE', 'Lax')
+    cookie_path = getattr(settings, 'AUTH_COOKIE_PATH', '/api/v1/')
+
+    response.delete_cookie(
+        key=cookie_name,
+        path=cookie_path,
+        samesite=cookie_samesite,
+    )
 
 # Constants for CoinGecko API access
 COINGECKO_API_URL = settings.COINGECKO_API_URL
@@ -561,14 +595,15 @@ def user_login(request):
     user.save(update_fields=['last_login'])
     
     user_serializer = UserSerializer(user)
-    return Response({
+    response = Response({
         'status': 200,
         'success': True,
         'message': f'Login Successful, Welcome back {user.username}!',
         'access_token': access_token,
-        'refresh_token': refresh_token,
         'user': user_serializer.data
     })
+    set_refresh_token_cookie(response, refresh_token)
+    return response
 
 
 # View to retrieve the current authenticated user's information, 
@@ -667,6 +702,56 @@ def reset_password_confirm(request, token):
 
 
 
+# View to handle token refresh from HttpOnly cookie or request body
+@extend_schema(
+    tags=['auth'],
+    request=TokenRefreshRequestSerializer,
+    responses={
+        200: TokenRefreshResponseSerializer,
+        401: ErrorResponseSerializer,
+    }
+)
+class CustomTokenRefreshView(TokenRefreshView):
+    def post(self, request, *args, **kwargs):
+        cookie_name = getattr(settings, 'AUTH_COOKIE_REFRESH_NAME', 'refresh_token')
+        raw_data = request.data if isinstance(request.data, dict) else {}
+        data = raw_data.copy()
+
+        if 'refresh' not in data and 'refresh_token' not in data:
+            cookie_token = request.COOKIES.get(cookie_name)
+            if cookie_token:
+                data['refresh'] = cookie_token
+        elif 'refresh_token' in data and 'refresh' not in data:
+            data['refresh'] = data['refresh_token']
+
+        if not data.get('refresh'):
+            return build_error_response('Authentication credentials were not provided.', status.HTTP_401_UNAUTHORIZED)
+
+        serializer = self.get_serializer(data=data)
+
+        try:
+            serializer.is_valid(raise_exception=True)
+        except TokenError as error:
+            return build_error_response(str(error), status.HTTP_401_UNAUTHORIZED)
+        except Exception:
+            return build_error_response('Invalid refresh token.', status.HTTP_401_UNAUTHORIZED)
+
+        validated_data = serializer.validated_data
+        access_token = validated_data.get('access')
+        response_payload = {
+            'access': access_token,
+            'access_token': access_token,
+        }
+
+        response = Response(response_payload, status=status.HTTP_200_OK)
+
+        new_refresh = validated_data.get('refresh')
+        if new_refresh:
+            set_refresh_token_cookie(response, new_refresh)
+
+        return response
+
+
 # View to handle user logout by blacklisting the refresh token, 
 # ensuring that it cannot be used to generate new access tokens.
 @api_view(['POST'])
@@ -677,26 +762,35 @@ def user_logout(request):
     if error_response:
         return error_response
 
-    refresh_token = data['refresh_token']
+    cookie_name = getattr(settings, 'AUTH_COOKIE_REFRESH_NAME', 'refresh_token')
+    refresh_token = (
+        data.get('refresh_token')
+        or data.get('refresh')
+        or request.COOKIES.get(cookie_name)
+    )
 
-    try:
-        token = RefreshToken(refresh_token)
+    if refresh_token:
+        try:
+            token = RefreshToken(refresh_token)
 
-        if str(token['user_id']) != str(request.user.id):
-            return build_error_response(
-                'You do not have permission to revoke this session.',
-                status.HTTP_403_FORBIDDEN
-            )
+            if str(token['user_id']) != str(request.user.id):
+                return build_error_response(
+                    'You do not have permission to revoke this session.',
+                    status.HTTP_403_FORBIDDEN
+                )
 
-        token.blacklist()
+            token.blacklist()
 
-        return Response({
-            'success': True,
-            'message': 'Logout successful.'
-        })
+        except TokenError:
+            if data.get('refresh_token') or data.get('refresh'):
+                return build_error_response('Invalid refresh token.')
 
-    except TokenError:
-        return build_error_response('Invalid refresh token.')
+    response = Response({
+        'success': True,
+        'message': 'Logout successful.'
+    })
+    clear_refresh_token_cookie(response)
+    return response
 
 
 # View to retrieve all watchlists for a specific user, 

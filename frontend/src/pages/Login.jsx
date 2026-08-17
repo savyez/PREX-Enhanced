@@ -55,12 +55,12 @@ const Login = () => {
       password: values.password,
     };
 
-      try {
-        const data = await login(userData);
+    try {
+      const data = await login(userData);
 
-        authLogin(data.access_token, data.refresh_token, data.user);
+      authLogin(data.access_token, data.user);
 
-        navigate('/prices');
+      navigate('/prices');
 
       } catch (error) {
         console.error('Login error:', error);

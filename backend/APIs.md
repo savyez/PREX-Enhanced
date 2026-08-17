@@ -218,13 +218,14 @@ Request:
 
 Response `200`:
 
+Sets an `HttpOnly`, `SameSite=Lax`, `Secure` (in production) cookie named `refresh_token`. The response body contains the short-lived `access_token` and user profile:
+
 ```json
 {
   "status": 200,
   "success": true,
   "message": "Login Successful, Welcome back demo_user!",
   "access_token": "<access-token>",
-  "refresh_token": "<refresh-token>",
   "user": {
     "id": "00000000-0000-0000-0000-000000000001",
     "first_name": "",
@@ -239,7 +240,7 @@ Response `200`:
 
 ### `POST /token/refresh/`
 
-Exchanges a valid refresh token for a new access token. Send the refresh token as JSON:
+Exchanges a valid refresh token for a new in-memory access token. When called from a browser, the refresh token is sent automatically via the `HttpOnly` cookie. API clients can also send the refresh token as JSON:
 
 ```json
 {
@@ -247,7 +248,16 @@ Exchanges a valid refresh token for a new access token. Send the refresh token a
 }
 ```
 
-The response is provided by Simple JWT and contains an `access` token; with rotation enabled it may also contain a new `refresh` token.
+Response `200`:
+
+```json
+{
+  "access": "<access-token>",
+  "access_token": "<access-token>"
+}
+```
+
+When refresh token rotation is active, the `refresh_token` HttpOnly cookie is updated with a rotated token.
 
 ### `GET /current-user/`
 
@@ -346,9 +356,9 @@ Response:
 
 ### `POST /logout/`
 
-Requires authentication. The refresh token must belong to the authenticated user; otherwise the API returns `403`. A valid token is blacklisted.
+Requires authentication. Clears the `HttpOnly` refresh token cookie and revokes/blacklists the session. When called with a JSON body, the refresh token must belong to the authenticated user; otherwise the API returns `403`.
 
-Request:
+Request (optional body):
 
 ```json
 {
