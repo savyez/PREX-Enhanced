@@ -23,3 +23,19 @@ class SystemEndpointTests(APITestCase):
         self.assertIn('/api/v1/health/', response.data['paths'])
         self.assertIn('/api/v1/login/', response.data['paths'])
         self.assertIn('/api/v1/watchlists/create/', response.data['paths'])
+
+    def test_anonymous_rate_limiting(self):
+        from unittest.mock import patch
+        from django.core.cache import cache
+        from rest_framework.throttling import AnonRateThrottle
+
+        cache.clear()
+        with patch.object(AnonRateThrottle, 'get_rate', return_value='3/minute'):
+            # First 3 requests succeed
+            for _ in range(3):
+                res = self.client.get(reverse('health_check'))
+                self.assertEqual(res.status_code, 200)
+
+            # 4th request gets throttled
+            throttled_res = self.client.get(reverse('health_check'))
+            self.assertEqual(throttled_res.status_code, 429)
