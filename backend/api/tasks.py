@@ -127,11 +127,24 @@ def sync_coingecko_market_data(self):
                 fields=['coin_name', 'price', 'market_volume', 'last_updated_at', 'market_cap_rank', 'price_change_24h', 'image']
             )
 
-    # Invalidate cached coin list pages so new market data is served immediately
+    # Invalidate cached coin list pages instead of flushing the entire Redis instance
     try:
-        cache.clear()
+        if hasattr(cache, 'delete_pattern'):
+            cache.delete_pattern("coin_list_*")
+        else:
+            # Fallback for default cache backend: clear known page ranges and sizes
+            keys_to_delete = [
+                f"coin_list_page_{page}_size_{size}"
+                for page in range(1, 20)
+                for size in (10, 25, 50, 100)
+            ]
+            if hasattr(cache, 'delete_many'):
+                cache.delete_many(keys_to_delete)
+            else:
+                for key in keys_to_delete:
+                    cache.delete(key)
     except Exception as cache_err:
-        logger.warning("Failed to clear cache after market sync: %s", cache_err)
+        logger.warning("Failed to clear coin list cache after market sync: %s", cache_err)
 
     return {
         "status": "success",

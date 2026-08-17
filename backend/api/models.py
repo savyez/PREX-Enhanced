@@ -94,6 +94,10 @@ class Coin(models.Model):
     class Meta:
         db_table = "coins"
         ordering = ["market_cap_rank"]
+        indexes = [
+            models.Index(fields=['coin_name']),
+            models.Index(fields=['market_cap_rank']),
+        ]
 
     def __str__(self):
         return f"{self.coin_name} ({self.ticker})"

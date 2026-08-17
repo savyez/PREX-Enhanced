@@ -31,6 +31,9 @@ CREATE TABLE coins (
     price_change_24h NUMERIC(10, 3) NOT NULL DEFAULT 0
 );
 
+CREATE INDEX coins_coin_name_idx ON coins(coin_name);
+CREATE INDEX coins_market_cap_rank_idx ON coins(market_cap_rank);
+
 CREATE TABLE watchlists (
     id BIGSERIAL PRIMARY KEY,
     user_id UUID NOT NULL,
