@@ -11,11 +11,24 @@ backend/
 ├── api/
 │   ├── migrations/       Django database migrations
 │   ├── templates/        Verification and password-reset email templates
+│   ├── services/         Dedicated domain services
+│   │   ├── auth_service.py     Registration, authentication, cookies & password reset
+│   │   ├── coingecko.py        CoinGeckoClient, search, charts, caching & timeouts
+│   │   └── email_service.py    Email rendering and SMTP dispatching
+│   ├── views/            Modular class-based API views
+│   │   ├── auth_views.py       Authentication and user account views
+│   │   ├── market_views.py     Coin list, search and chart views
+│   │   ├── watchlist_views.py  Watchlist CRUD, membership and item views
+│   │   └── system_views.py     Health check and API root views
+│   ├── tests/            Modular class-based test suites
+│   │   ├── test_auth.py        Registration, login, cookie rotation, reset & user tests
+│   │   ├── test_market.py      Coin list, search, charts & Celery task tests
+│   │   ├── test_watchlist.py   Watchlist CRUD, items & permission tests
+│   │   ├── test_services.py    CoinGecko, Auth & Email unit tests
+│   │   └── test_system.py      System endpoint & OpenAPI schema tests
 │   ├── models.py         User, Coin, Watchlist and WatchlistItem models
 │   ├── serializers.py    API response serializers
-│   ├── urls.py            Versioned API routes
-│   ├── views.py           API handlers and validation
-│   └── tests.py           Integration tests
+│   └── urls.py           Versioned API routes
 ├── prex/
 │   ├── settings/         local, shared and production settings
 │   ├── urls.py            Admin and `/api/v1/` routing

@@ -6,7 +6,7 @@ from django.db import transaction
 from django.utils import timezone
 
 from .models import Coin
-from .views import fetch_coingecko, CoinGeckoTimeout
+from .services.coingecko import fetch_coingecko, CoinGeckoTimeout
 
 
 @shared_task(
