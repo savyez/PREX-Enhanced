@@ -5,17 +5,44 @@ import { addCoinToWatchlist, getWatchlists, removeCoinFromWatchlist } from '../u
 
 const WatchlistContext = createContext(null);
 
+const buildMembershipMap = (watchlistArray = []) => {
+  const nextMembershipMap = {};
+
+  watchlistArray.forEach((watchlist) => {
+    const items = watchlist.items || [];
+
+    items.forEach((item) => {
+      const ticker = item?.ticker?.ticker;
+      if (!ticker) {
+        return;
+      }
+
+      if (!nextMembershipMap[ticker]) {
+        nextMembershipMap[ticker] = [];
+      }
+
+      nextMembershipMap[ticker].push({
+        item_id: item.id,
+        watchlist_id: watchlist.id,
+        watchlist_name: watchlist.name,
+      });
+    });
+  });
+
+  return nextMembershipMap;
+};
+
 export function WatchlistProvider({ children }) {
   const { authenticated, user } = useAuth();
   const [watchlists, setWatchlists] = useState([]);
-  const [membershipMap, setMembershipMap] = useState({});
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+
+  const membershipMap = useMemo(() => buildMembershipMap(watchlists), [watchlists]);
 
   const refreshWatchlists = useCallback(async () => {
     if (!authenticated || !user?.id) {
       setWatchlists([]);
-      setMembershipMap({});
       setError('');
       return;
     }
@@ -25,35 +52,10 @@ export function WatchlistProvider({ children }) {
 
     try {
       const { watchlists: userWatchlists = [] } = await getWatchlists(user.id);
-      const nextMembershipMap = {};
-
-      userWatchlists.forEach((watchlist) => {
-        const items = watchlist.items || [];
-
-        items.forEach((item) => {
-          const ticker = item?.ticker?.ticker;
-          if (!ticker) {
-            return;
-          }
-
-          if (!nextMembershipMap[ticker]) {
-            nextMembershipMap[ticker] = [];
-          }
-
-          nextMembershipMap[ticker].push({
-            item_id: item.id,
-            watchlist_id: watchlist.id,
-            watchlist_name: watchlist.name,
-          });
-        });
-      });
-
       setWatchlists(userWatchlists);
-      setMembershipMap(nextMembershipMap);
     } catch (err) {
       setError(err.message || 'Failed to load watchlists');
       setWatchlists([]);
-      setMembershipMap({});
     } finally {
       setLoading(false);
     }
@@ -72,18 +74,34 @@ export function WatchlistProvider({ children }) {
       throw new Error('User not authenticated');
     }
 
-    await addCoinToWatchlist(user.id, watchlistId, ticker);
-    await refreshWatchlists();
-  }, [refreshWatchlists, user]);
+    const response = await addCoinToWatchlist(user.id, watchlistId, ticker);
+    const updatedWatchlist = response?.watchlist;
+
+    if (updatedWatchlist?.id) {
+      setWatchlists((prev) =>
+        prev.map((w) => (w.id === updatedWatchlist.id ? updatedWatchlist : w))
+      );
+    }
+
+    return response;
+  }, [user]);
 
   const removeCoin = useCallback(async (ticker, watchlistId) => {
     if (!user?.id) {
       throw new Error('User not authenticated');
     }
 
-    await removeCoinFromWatchlist(user.id, watchlistId, ticker);
-    await refreshWatchlists();
-  }, [refreshWatchlists, user]);
+    const response = await removeCoinFromWatchlist(user.id, watchlistId, ticker);
+    const updatedWatchlist = response?.watchlist;
+
+    if (updatedWatchlist?.id) {
+      setWatchlists((prev) =>
+        prev.map((w) => (w.id === updatedWatchlist.id ? updatedWatchlist : w))
+      );
+    }
+
+    return response;
+  }, [user]);
 
   const value = useMemo(() => ({
     watchlists,

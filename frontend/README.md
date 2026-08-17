@@ -17,15 +17,16 @@ frontend/
 ├── public/                 Static files and icons
 ├── src/
 │   ├── assets/             Images such as the CoinGecko attribution asset
-│   ├── components/         App shell, navigation, cards, charts and form controls
+│   ├── components/         App shell, ErrorBoundary, navigation, cards, charts and form controls
 │   ├── context/            Authentication, watchlist and alert providers
 │   ├── hooks/              Reusable chart-data hooks
 │   ├── modals/             Confirmation and watchlist creation dialogs
 │   ├── pages/              Route-level screens
 │   ├── styles/             Shared, component and page stylesheets
-│   ├── utils/api.js         Centralized API requests and token refresh handling
-│   ├── utils/auth.js        Local session storage helpers
-│   └── main.jsx             Application entry point
+│   ├── utils/api.js        Centralized API requests with silent token refresh
+│   ├── utils/auth.js       In-memory authentication state helpers
+│   ├── utils/formatters.js Consolidated number, currency, and time formatters
+│   └── main.jsx            Application entry point wrapped in ErrorBoundary
 ├── .env.example
 ├── eslint.config.js
 ├── package.json
@@ -98,25 +99,44 @@ Routes are lazy-loaded with `React.lazy` and rendered inside a shared `Suspense`
 
 ### App shell
 
-`App.jsx` creates the browser router and wraps the application with:
+`main.jsx` wraps the application in a global `ErrorBoundary` to gracefully catch unhandled component crashes. `App.jsx` creates the browser router and wraps the component tree with:
 
 1. `AuthProvider` for session restoration and expiration handling
 2. `AlertProvider` for temporary MUI Snackbar alerts
 3. `WatchlistProvider` for watchlists and coin membership data
 4. `AppContent` for the navbar, route content and footer
 
-### Authentication
+### Error Boundary & Recovery
 
-- Refresh tokens are stored securely in an `HttpOnly`, `SameSite=Lax`, `Secure` browser cookie set by Django.
-- Short-lived access tokens are kept purely in memory (React context and API client module state).
-- The auth provider restores a session on app reload via silent token refresh (`/token/refresh/`) using the HttpOnly cookie.
-- `api.js` retries an authenticated request once after silently refreshing an expired access token.
-- Failed authentication dispatches an `authfailure` event; the auth provider clears in-memory state and redirects to `/login`.
-- Logout revokes/blacklists the server-side refresh token and clears both the cookie and in-memory session.
+`src/components/ErrorBoundary.jsx` wraps the React root:
+- Intercepts uncaught runtime errors (e.g. malformed chart payloads, modal rendering exceptions) to prevent full-screen blank page crashes.
+- Provides accessible recovery actions: **Try Again** (resets local error state), **Reload Page**, and **Go to Home**.
+- Renders detailed stack traces exclusively in development mode (`import.meta.env.DEV`).
+- Supports an optional `fallback` prop for isolated component boundaries.
 
-### Watchlists
+### Authentication & Token Security
 
-`WatchlistProvider` loads the user’s watchlists and their items, then builds a coin membership map used by price cards, search results and the watchlist page. Add/remove/create/delete operations refresh the provider state after the API request succeeds.
+- **HttpOnly Refresh Tokens**: Refresh tokens are stored strictly in `HttpOnly`, `SameSite=Lax`, `Secure` browser cookies set by Django, preventing token theft via XSS.
+- **Zero LocalStorage Tokens**: No tokens or sensitive user credentials are saved in browser `localStorage`.
+- **In-Memory Access Tokens**: Short-lived JWT access tokens are held strictly in memory (`inMemoryAccessToken` closure).
+- **Silent Rotation**: Outgoing fetch requests use `credentials: 'include'`. The `AuthProvider` automatically restores sessions on reload via `POST /token/refresh/`.
+- **Automatic Retries**: `api.js` intercepts `401 Unauthorized` responses and silently refreshes the access token once before retrying the original request.
+- **Expiration Handling**: Dispatches an `authfailure` event to cleanly clear state and redirect users to `/login`.
+
+### Watchlists & State Synchronization
+
+- `WatchlistProvider` manages watchlists and provides immediate, optimistic-like updates:
+  - Adding or removing coins consumes the updated watchlist returned directly by the backend endpoint, avoiding redundant full `getWatchlists` roundtrips.
+  - A reactive `membershipMap` is derived synchronously via `useMemo`, ensuring `Add to Watchlist` / `Manage (N)` buttons update instantly across cards and search results.
+
+### Formatting Utilities (DRY Principle)
+
+`src/utils/formatters.js` provides centralized, reusable formatting functions:
+- `formatPrice(price)`: Localized decimal precision (2 decimal places for integers, up to 6 for float prices).
+- `formatPriceChange(change)`: Signed 24-hour percentage strings (e.g., `+2.50%` or `-1.20%`).
+- `getPriceChangeClass(change)`: Returns semantic CSS class names (`price-up`, `price-down`, `price-neutral`).
+- `formatCurrency(amount)`: USD currency string formatter.
+- `formatTime(date)`: 12-hour AM/PM timestamp string formatter.
 
 ### Alerts
 

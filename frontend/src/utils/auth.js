@@ -6,25 +6,6 @@ const isAuthenticated = () => {
 
 const clearAuth = () => {
   clearAccessToken();
-  localStorage.removeItem("access_token");
-  localStorage.removeItem("refresh_token");
-  localStorage.removeItem("user");
 };
 
-const getUser = () => {
-  const user = localStorage.getItem("user");
-
-  if (!user) {
-    return null;
-  }
-
-  try {
-    return JSON.parse(user);
-  } catch {
-    clearAuth();
-    return null;
-  }
-};
-
-
-export { isAuthenticated, getUser, clearAuth };
+export { isAuthenticated, clearAuth };

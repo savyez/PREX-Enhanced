@@ -1,19 +1,15 @@
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import Button from '../components/Button.jsx';
 import Form from '../components/Form.jsx';
 import { requestPasswordReset } from '../utils/api.js';
-import { getUser, isAuthenticated } from '../utils/auth.js';
 import { useAuth } from '../context/authContext.jsx';
 import '../styles/page_style/settings.css';
 import Alert from '@mui/material/Alert';
 
 function Settings() {
   const navigate = useNavigate();
-  const { logout: authLogout, user: authUser, authenticated } = useAuth();
-  const fallbackUser = useMemo(() => getUser(), []);
-  const user = authUser || fallbackUser;
-  const isUserAuthenticated = authenticated || isAuthenticated();
+  const { logout: authLogout, user, authenticated: isUserAuthenticated } = useAuth();
 
   const [values, setValues] = useState({ email: user?.email || '' });
   const [message, setMessage] = useState('');

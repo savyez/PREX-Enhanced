@@ -6,6 +6,12 @@ import Card from './Card.jsx';
 import '../styles/component_style/coinCard.css';
 
 
+import {
+    formatPrice,
+    formatPriceChange,
+    getPriceChangeClass,
+} from '../utils/formatters.js';
+
 const CoinChart = lazy(() => import('./CoinChart.jsx'));
 const WatchlistSelector = lazy(() => import('./WatchlistSelector.jsx'));
 
@@ -19,13 +25,9 @@ function CoinCard({ coin, rank, onCardClick, showChart = false }) {
 
     const [imageError, setImageError] = useState(false);
 
-    const price = Number(coin.price).toLocaleString();
-    const priceChange = Number(coin.price_change_24h);
-    const hasPriceChange = Number.isFinite(priceChange);
-    const priceChangeClass = !hasPriceChange ? 'price-neutral' : priceChange >= 0 ? 'price-up' : 'price-down';
-    const formattedPriceChange = hasPriceChange
-        ? `${priceChange > 0 ? '+' : ''}${priceChange.toFixed(2)}%`
-        : 'N/A';
+    const price = formatPrice(coin?.price);
+    const priceChangeClass = getPriceChangeClass(coin?.price_change_24h);
+    const formattedPriceChange = formatPriceChange(coin?.price_change_24h);
 
 
     const handleWatchlistButtonClick = async (event) => {

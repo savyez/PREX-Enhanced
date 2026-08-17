@@ -11,25 +11,11 @@ import { useWatchlist } from '../context/watchlistContext.jsx';
 
 
 
-const formatPriceChange = (priceChange) => {
-    const numericChange = Number(priceChange);
-
-    if (!Number.isFinite(numericChange)) {
-        return 'N/A';
-    }
-
-    return `${numericChange > 0 ? '+' : ''}${numericChange.toFixed(2)}%`;
-};
-
-const getPriceChangeClass = (priceChange) => {
-    const numericChange = Number(priceChange);
-
-    if (!Number.isFinite(numericChange)) {
-        return 'price-neutral';
-    }
-
-    return numericChange >= 0 ? 'price-up' : 'price-down';
-};
+import {
+    formatPrice,
+    formatPriceChange,
+    getPriceChangeClass,
+} from '../utils/formatters.js';
 
 function Watchlist() {
     const { user } = useAuth();
@@ -152,8 +138,7 @@ function Watchlist() {
                                     <h3>{item.ticker.coin_name}</h3>
                                     <span>{item.ticker.ticker}</span>
                                     <p>
-                                    Price: $
-                                    {Number(item.ticker.price).toLocaleString()}
+                                        Price: ${formatPrice(item.ticker.price)}
                                     </p>
                                     <strong className={`watchlist-price-change ${getPriceChangeClass(item.ticker.price_change_24h)}`}>
                                         Change (24h): {formatPriceChange(item.ticker.price_change_24h)}

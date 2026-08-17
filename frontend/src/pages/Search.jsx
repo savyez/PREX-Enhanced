@@ -13,64 +13,13 @@ import '../styles/page_style/search.css';
 const CoinChart = lazy(() => import('../components/CoinChart.jsx'));
 const WatchlistSelector = lazy(() => import('../components/WatchlistSelector.jsx'));
 
-const formatPrice = (price) => {
-  const numericPrice = Number(price);
-
-  if (!Number.isFinite(numericPrice)) {
-    return 'N/A';
-  }
-
-  return numericPrice.toLocaleString(undefined, {
-    minimumFractionDigits: Number.isInteger(numericPrice) ? 2 : 0,
-    maximumFractionDigits: Number.isInteger(numericPrice) ? 2 : 6,
-  });
-};
-
-const formatTime = (last_updated_at) => {
-  const dateObj = new Date(last_updated_at);
-
-  let hours = dateObj.getHours();
-  const minutes = String(dateObj.getMinutes()).padStart(2, '0');
-  const seconds = String(dateObj.getSeconds()).padStart(2, '0');
-
-  if (hours > 12) {
-    hours -= 12;
-    return `${String(hours).padStart(2, '0')}:${minutes}:${seconds} PM`;
-  }
-
-  if (hours === 0) {
-    return `12:${minutes}:${seconds} AM`;
-  }
-
-  return `${String(hours).padStart(2, '0')}:${minutes}:${seconds} AM`;
-};
-
-const formatCur = (market_volume) => {
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
-  }).format(market_volume);
-};
-
-const formatPriceChange = (price_change_24h) => {
-  const numericChange = Number(price_change_24h);
-
-  if (!Number.isFinite(numericChange)) {
-    return 'N/A';
-  }
-
-  return `${numericChange > 0 ? '+' : ''}${numericChange.toFixed(2)}%`;
-};
-
-const getPriceChangeClass = (price_change_24h) => {
-  const numericChange = Number(price_change_24h);
-
-  if (!Number.isFinite(numericChange)) {
-    return 'price-neutral';
-  }
-
-  return numericChange >= 0 ? 'price-up' : 'price-down';
-};
+import {
+  formatCur,
+  formatPrice,
+  formatPriceChange,
+  formatTime,
+  getPriceChangeClass,
+} from '../utils/formatters.js';
 
 const Search = () => {
   const { coinId } = useParams();
