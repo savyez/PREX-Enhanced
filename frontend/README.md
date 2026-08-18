@@ -1,6 +1,6 @@
 # PREX Frontend
 
-The PREX frontend is a React single-page application built with Vite. It provides cryptocurrency browsing and search, seven-day price charts, authentication screens, profile settings, watchlist management, responsive navigation, and MUI alert notifications.
+The PREX frontend is a React single-page application built with Vite. It provides cryptocurrency browsing and search, seven-day price charts, authentication screens, profile settings, watchlist management, responsive navigation, MUI alert notifications, and containerized Nginx reverse proxy deployment with TLS/SSL termination support.
 
 ## Stack
 
@@ -9,6 +9,7 @@ The PREX frontend is a React single-page application built with Vite. It provide
 - React Router
 - Material UI and Emotion
 - Recharts
+- Nginx (Alpine-based reverse proxy and static asset server)
 
 ## Project Structure
 
@@ -27,6 +28,10 @@ frontend/
 │   ├── utils/auth.js       In-memory authentication state helpers
 │   ├── utils/formatters.js Consolidated number, currency, and time formatters
 │   └── main.jsx            Application entry point wrapped in ErrorBoundary
+├── Dockerfile              Multi-stage build (Node 22 build -> Nginx Alpine)
+├── nginx.conf              HTTP reverse proxy, buffering, gzip, security headers & asset caching
+├── nginx.ssl.conf          HTTPS/TLS termination, HTTP->HTTPS redirect, HSTS & ACME challenge
+├── .dockerignore           Excludes node_modules, build artifacts, and .env.*
 ├── .env.example
 ├── eslint.config.js
 ├── package.json
@@ -35,7 +40,7 @@ frontend/
 
 ## Requirements
 
-- Node.js and npm
+- Node.js 20+ and npm
 - A running PREX backend API
 
 Install dependencies from this directory:
@@ -54,10 +59,10 @@ For local development:
 VITE_API_BASE_URL=http://127.0.0.1:8000/api/v1
 ```
 
-For production, use the deployed API origin and versioned path:
+For production or Docker Compose:
 
 ```env
-VITE_API_BASE_URL=https://api.example.com/api/v1
+VITE_API_BASE_URL=/api/v1
 ```
 
 The production Vite build fails when `VITE_API_BASE_URL` is missing. Only variables prefixed with `VITE_` are exposed to browser code, so never put private secrets in frontend environment files.
@@ -97,7 +102,7 @@ Routes are lazy-loaded with `React.lazy` and rendered inside a shared `Suspense`
 
 ## Application Flow
 
-### App shell
+### App Shell
 
 `main.jsx` wraps the application in a global `ErrorBoundary` to gracefully catch unhandled component crashes. `App.jsx` creates the browser router and wraps the component tree with:
 
@@ -149,26 +154,26 @@ showAlert('Coin added to your watchlist.', 'success');
 
 Alerts are rendered in a top-right MUI Snackbar, automatically fade out after three seconds, and support `success`, `info`, `warning`, and `error` severities.
 
-## API Client
+## Nginx Reverse Proxy & Production Server
 
-All frontend requests should go through `src/utils/api.js`. It provides helpers for:
+The frontend image uses a multi-stage Docker build (`frontend/Dockerfile`) that builds the Vite SPA using Node 22 and packages the resulting static assets into an optimized `nginx:alpine` image.
 
-- Authentication and token refresh
-- Current-user and profile operations
-- Market data and coin search
-- Chart data
-- Watchlist CRUD and membership
-- Password-reset requests
+### 1. Standard HTTP & Reverse Proxy Configuration (`nginx.conf`)
+- **Slowloris Mitigation & Buffering**: Configures `proxy_buffering on` with 128k/256k buffers to isolate Gunicorn workers from slow client connections.
+- **Connection Keepalive**: Upstream keepalive connection pool (`keepalive 32`) to the backend service.
+- **Static Asset Caching**: 30-day client browser caching (`Cache-Control: public, no-transform`) for JavaScript bundles, CSS, images, and fonts.
+- **Gzip Compression**: Compresses text, JSON, JS, CSS, and SVG payloads on the fly.
+- **SPA Routing Fallback**: `try_files $uri $uri/ /index.html` ensures client-side routing works seamlessly on direct page visits and refreshes.
+- **Health Check**: Fast, unlogged `/healthz` endpoint returning HTTP 200 for cloud load balancers.
 
-Authenticated requests automatically use the in-memory access token. The API base URL is normalized so callers can use paths with or without a leading slash.
-
-For endpoint details and request/response examples, see [`../backend/APIs.md`](../backend/APIs.md).
-
-## Charts and Loading States
-
-`CoinChart` fetches chart data through the API client and renders `SparklineChart` using Recharts. Charts support compact card views and full search-page views with axes. Trend loading, unavailable data and API errors have dedicated visual states.
-
-The chart remark explains that the chart represents the net change over seven days.
+### 2. HTTPS & TLS Termination Configuration (`nginx.ssl.conf`)
+- **Modern Cryptography**: Enforces `TLSv1.2` and `TLSv1.3` protocols and modern forward-secret ciphers.
+- **Automatic 301 Redirect**: Redirects all port 80 (HTTP) traffic to port 443 (HTTPS) while preserving query paths.
+- **Let's Encrypt Support**: Passes `/.well-known/acme-challenge/` to `/var/www/certbot` for automated SSL renewals.
+- **Enterprise Security Headers**: Sets `Strict-Transport-Security` (HSTS), `X-Frame-Options: SAMEORIGIN`, `X-Content-Type-Options: nosniff`, and `Referrer-Policy`.
+- **Certificate Mounting**: Expects certificate files at:
+  - `/etc/nginx/ssl/live/fullchain.pem`
+  - `/etc/nginx/ssl/live/privkey.pem`
 
 ## Scripts
 
@@ -188,33 +193,21 @@ npm run build
 npm run preview
 ```
 
-The project currently has no dedicated frontend unit-test script. Backend integration tests cover API behavior; frontend testing should be added as the UI grows.
-
 ## Production Build
 
 Set the production API URL before building:
 
 ```powershell
-$env:VITE_API_BASE_URL="https://api.example.com/api/v1"
+$env:VITE_API_BASE_URL="/api/v1"
 npm run lint
 npm run build
 ```
 
-Deploy the generated `dist/` directory to a static host or web server. Because this is a client-side routed application, configure the host to serve `index.html` for unknown frontend routes such as `/prices`, `/profile`, and `/coins/search/bitcoin`.
+Deploy the generated `dist/` directory or run the containerized service via `docker-compose.prod.yml`.
 
-The Vite configuration splits large vendor groups into separate chunks for React, MUI/Emotion, Recharts and other dependencies.
-
-## Frontend Safety Notes
+## Safety & Best Practices
 
 - Do not place API keys, database credentials or Django secrets in `VITE_` variables.
-- Use HTTPS for the deployed frontend and backend.
-- Configure the backend CORS allowlist for the exact frontend origin.
-- Treat browser-stored tokens as sensitive and avoid logging them.
-- Replace placeholder API URLs before a production build.
-
-## Future Frontend Work
-
-- Add component and end-to-end tests for login, token expiry, watchlists and alerts.
-- Improve keyboard focus handling and accessibility checks for modals and navigation.
-- Add offline/stale-data behavior when the market-data provider is unavailable.
-- Add an AI-powered, plain-language explanation of a coin’s seven-day trend, with server-side key protection, rate limiting and clear financial disclaimers.
+- Use HTTPS for all production deployments (`nginx.ssl.conf`).
+- Configure backend `CORS_ALLOWED_ORIGINS` to strictly match your production domain.
+- Never store tokens in `localStorage` or `sessionStorage` (handled automatically via HttpOnly cookies and in-memory tokens).

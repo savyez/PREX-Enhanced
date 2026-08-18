@@ -1,65 +1,65 @@
+# =============================================================================
+# PREX Production Docker Compose Configuration
+# =============================================================================
+# Production-hardened multi-container deployment:
+# - Disables public host port exposure for PostgreSQL (5432) and Redis (6379)
+# - Removes live-code volume mounts (./backend:/app) to ensure immutability
+# - Runs production WSGI server (Gunicorn) with multi-worker concurrency
+# - Uses production environment configuration
+#
+# Usage:
+#   docker compose -f docker-compose.prod.yml up --build -d
+# =============================================================================
+
 services:
   # =========================================================================
-  # 1. PostgreSQL Database Service
+  # 1. PostgreSQL Database Service (Internal Network Only)
   # =========================================================================
-  # Runs the PostgreSQL 17 database storing user accounts, watchlists, etc.
   db:
     image: postgres:17-alpine
-    container_name: prex_db
-    restart: unless-stopped
+    container_name: prex_db_prod
+    restart: always
     environment:
       POSTGRES_DB: ${DB_NAME:-prex}
       POSTGRES_USER: ${DB_USER:-postgres}
       POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
-    ports:
-      - "5432:5432" # Exposes Postgres port for local DB admin tools (e.g. pgAdmin/DBeaver)
     volumes:
-      - postgres_data:/var/lib/postgresql/data # Persists database data across container restarts
+      - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      # Verifies PostgreSQL is ready to accept connections before downstream services start
       test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres} -d ${DB_NAME:-prex}"]
-      interval: 5s
+      interval: 10s
       timeout: 5s
       retries: 5
 
   # =========================================================================
-  # 2. Redis Cache & Message Broker Service
+  # 2. Redis Cache & Broker Service (Internal Network Only)
   # =========================================================================
-  # Acts as the message broker passing asynchronous tasks between Django & Celery
   redis:
     image: redis:7-alpine
-    container_name: prex_redis
-    restart: unless-stopped
-    ports:
-      - "6379:6379" # Exposes Redis port locally
+    container_name: prex_redis_prod
+    restart: always
     healthcheck:
-      # Pings Redis server to verify it is responsive
       test: ["CMD", "redis-cli", "ping"]
-      interval: 5s
+      interval: 10s
       timeout: 3s
       retries: 5
 
   # =========================================================================
-  # 3. Django Web API Backend Service
+  # 3. Django Web API Backend Service (Gunicorn WSGI)
   # =========================================================================
-  # Runs Django REST Framework backend API and automatically runs DB migrations on startup
   backend:
     build:
       context: .
       dockerfile: backend/Dockerfile
-    container_name: prex_backend
-    restart: unless-stopped
+    container_name: prex_backend_prod
+    restart: always
     command: >
-      sh -c "python manage.py migrate &&
+      sh -c "python manage.py migrate --noinput &&
+             python manage.py collectstatic --noinput &&
              gunicorn prex.wsgi:application --bind 0.0.0.0:8000 --workers 3 --timeout 60"
-    volumes:
-      - ./backend:/app # Hot-reloading: mounts local backend code into container
-    ports:
-      - "8000:8000" # Exposes Django REST API port
     env_file:
-      - .env.docker # Loads Docker-specific environment variables
+      - .env.docker
     depends_on:
-      # Waits until both Postgres and Redis pass their health checks before launching
       db:
         condition: service_healthy
       redis:
@@ -68,16 +68,13 @@ services:
   # =========================================================================
   # 4. Celery Asynchronous Task Worker Service
   # =========================================================================
-  # Processes background tasks (e.g., sending email verification / password resets)
   celery_worker:
     build:
       context: .
       dockerfile: backend/Dockerfile
-    container_name: prex_celery_worker
-    restart: unless-stopped
+    container_name: prex_celery_worker_prod
+    restart: always
     command: celery -A prex worker --loglevel=info
-    volumes:
-      - ./backend:/app # Mounts codebase to pick up updated task logic
     env_file:
       - .env.docker
     depends_on:
@@ -89,16 +86,13 @@ services:
   # =========================================================================
   # 5. Celery Beat Periodic Task Scheduler Service
   # =========================================================================
-  # Triggers periodic background jobs at set intervals (e.g., syncing CoinGecko data every 5 mins)
   celery_beat:
     build:
       context: .
       dockerfile: backend/Dockerfile
-    container_name: prex_celery_beat
-    restart: unless-stopped
+    container_name: prex_celery_beat_prod
+    restart: always
     command: celery -A prex beat --loglevel=info
-    volumes:
-      - ./backend:/app
     env_file:
       - .env.docker
     depends_on:
@@ -108,19 +102,19 @@ services:
         condition: service_healthy
 
   # =========================================================================
-  # 6. React Frontend & Nginx Proxy Service
+  # 6. React Frontend & Nginx Reverse Proxy Service
   # =========================================================================
-  # Builds static Vite React app and serves it via Nginx, while proxying /api/ to backend
   frontend:
     build:
       context: .
       dockerfile: frontend/Dockerfile
       args:
         VITE_API_BASE_URL: /api/v1
-    container_name: prex_frontend
-    restart: unless-stopped
+    container_name: prex_frontend_prod
+    restart: always
     ports:
-      - "80:80" # Main entrypoint for users visiting http://localhost
+      - "80:80"
+      - "443:443"
     depends_on:
       - backend
 
@@ -128,4 +122,4 @@ services:
 # Persistent Storage Volumes
 # =============================================================================
 volumes:
-  postgres_data: # Named volume ensuring database data persists across compose down/up cycles
+  postgres_data:

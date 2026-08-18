@@ -1,6 +1,6 @@
 # PREX Backend
 
-The PREX backend is a Django 6 and Django REST Framework API for cryptocurrency market data, authentication, email verification, password reset, and user watchlists. It uses PostgreSQL and CoinGecko as the external market-data provider.
+The PREX backend is a Django 6 and Django REST Framework API for cryptocurrency market data, authentication, email verification, password reset, and user watchlists. It uses PostgreSQL, Redis caching, Celery asynchronous processing, Gunicorn WSGI, and CoinGecko as the external market-data provider.
 
 For the complete endpoint reference, request bodies, response examples and authentication details, [click here to open `APIs.md`](APIs.md) or visit the interactive documentation.
 
@@ -20,7 +20,7 @@ backend/
 │   │   ├── market_views.py     Coin list, search and chart views
 │   │   ├── watchlist_views.py  Watchlist CRUD, membership and item views
 │   │   └── system_views.py     Health check and API root views
-│   ├── tests/            Modular class-based test suites
+│   ├── tests/            Modular class-based test suites (37 tests)
 │   │   ├── test_auth.py        Registration, login, cookie rotation, reset & user tests
 │   │   ├── test_market.py      Coin list, search, charts & Celery task tests
 │   │   ├── test_watchlist.py   Watchlist CRUD, items & permission tests
@@ -28,22 +28,27 @@ backend/
 │   │   └── test_system.py      System endpoint & OpenAPI schema tests
 │   ├── models.py         User, Coin, Watchlist and WatchlistItem models
 │   ├── serializers.py    API response serializers
+│   ├── paginations.py    Standard pagination utilities
 │   ├── tasks.py          Celery background tasks (market sync, email delivery)
 │   └── urls.py           Versioned API routes
 ├── prex/
 │   ├── settings/         local, shared and production settings
-│   ├── urls.py            Admin and `/api/v1/` routing
+│   ├── celery.py         Celery app instance and scheduled beat tasks
+│   ├── urls.py           Admin and `/api/v1/` routing
 │   ├── asgi.py
 │   └── wsgi.py
+├── Dockerfile            Multi-worker Gunicorn container entrypoint
+├── .dockerignore         Excludes local virtual environments (.venv), cache, and secrets (.env.*)
 ├── manage.py
 ├── schema.sql            Documentation schema for application tables
-└── requirements.txt      Python dependencies at repository root
+└── APIs.md               Detailed API specification
 ```
 
 ## Requirements
 
-- Python 3.12 or a compatible supported Python version
-- PostgreSQL
+- Python 3.12 or compatible supported Python version
+- PostgreSQL 15+ (Postgres 17 recommended)
+- Redis 7+ (for caching & Celery broker)
 - SMTP credentials for registration verification and password reset emails
 - CoinGecko API key
 
@@ -55,6 +60,13 @@ python -m venv .venv
 pip install -r requirements.txt
 ```
 
+Key dependencies include:
+- `Django 6.1` & `djangorestframework 3.18.0`
+- `djangorestframework_simplejwt 5.5.1` & `cryptography 50.0.0`
+- `gunicorn 26.0.0` (Production WSGI server)
+- `celery 5.6.3` & `redis 8.1.0`
+- `google-auth` & `requests-oauthlib`
+
 ## Configuration
 
 Copy `backend/.env.example` to `backend/.env` and replace the placeholder values. Local development uses `prex.settings.local`; production must use `prex.settings.production`.
@@ -63,6 +75,7 @@ Required shared settings include:
 
 - `DJANGO_SECRET_KEY`
 - `DB_NAME`, `DB_USER`, `DB_PASSWORD`, `DB_HOST`, and `DB_PORT`
+- `REDIS_CACHE_URL`, `CELERY_BROKER_URL`, and `CELERY_RESULT_BACKEND`
 - `EMAIL_VERIFICATION_URL` and `EMAIL_VERIFICATION_SUCCESS_URL`
 
 Production additionally requires:
@@ -117,15 +130,15 @@ Interactive API documentation is available while the backend is running:
 - Swagger UI: `/api/v1/docs/`
 - ReDoc: `/api/v1/redoc/`
 
-## Authentication
+## Authentication & Security
 
-Login returns a short-lived access token and a refresh token. Send the access token on protected requests:
-
-```http
-Authorization: Bearer <access-token>
-```
-
-The logout endpoint requires authentication and only blacklists a refresh token when its `user_id` matches the authenticated user. Refresh tokens are rotated/blacklisted according to the Simple JWT settings.
+- Login sets an `HttpOnly`, `SameSite=Lax`, `Secure` cookie containing the refresh token and returns a short-lived access token in the JSON body.
+- Pass the access token on protected requests:
+  ```http
+  Authorization: Bearer <access-token>
+  ```
+- The logout endpoint requires authentication and blacklists the refresh token.
+- Public and authenticated endpoints are protected by DRF throttling (`AnonRateThrottle` and `UserRateThrottle`).
 
 ## Background Tasks & Celery Workers
 
@@ -140,39 +153,40 @@ Asynchronous operations are managed via Celery and Redis (`api/tasks.py`):
 
 ## External API Behavior
 
-CoinGecko requests use connection/read timeouts. Provider timeouts return `504`, other provider failures return `502`, and invalid or unavailable coin data returns an appropriate `4xx`/`5xx` response. Chart payloads are cached for five minutes.
+CoinGecko requests use connection/read timeouts. Provider timeouts return `504`, other provider failures return `502`, and invalid or unavailable coin data returns an appropriate `4xx`/`5xx` response. Chart payloads are cached in Redis for five minutes.
 
-## Validation
+## Validation & Production Deployment
 
-Run backend checks and tests from `backend/`:
-
+### Local Checks & Tests
 ```powershell
 python manage.py check
 python manage.py test
 ```
 
-For a production configuration:
-
+### Production Readiness Check
 ```powershell
 $env:DJANGO_SETTINGS_MODULE="prex.settings.production"
 python manage.py check --deploy
 ```
 
+### Running with Gunicorn WSGI Server
 Before starting the production server:
 
 ```powershell
 python manage.py migrate --noinput
 python manage.py collectstatic --noinput
-gunicorn prex.wsgi:application
+gunicorn prex.wsgi:application --bind 0.0.0.0:8000 --workers 3 --timeout 60
 ```
 
-The public load-balancer health check should use:
+The load-balancer and container health check endpoint:
 
 ```text
 /api/v1/health/
 ```
 
-## Current Limitations
+### Production Deployment & Operational Notes
 
-- Rate limiting, centralized observability, background email delivery and provider-failure alerting are not yet implemented.
-- PostgreSQL backup/restore procedures, deployment manifests and CI/CD configuration are maintained outside this backend directory and should be added before a larger production rollout.
+- **Docker Production Stack (`docker-compose.prod.yml`)**: Isolates Postgres and Redis within internal Docker networks, runs Gunicorn with 3 workers, and integrates Nginx reverse proxy.
+- **Rate Limiting & Throttling**: Configured out of the box via Django REST Framework settings.
+- **Background Tasks**: Separate containers for `celery_worker` and `celery_beat` ensure task execution does not consume web worker resources.
+- **Secrets Management**: Keep `.env.docker` and `.env` files outside version control (handled by `.dockerignore` and `.gitignore`).

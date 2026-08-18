@@ -6,17 +6,18 @@ PREX is a modern, high-performance full-stack cryptocurrency tracking applicatio
 
 ## Architecture & Technology Stack
 
-- **Backend:** Python 3.12, Django 6, Django REST Framework, Simple JWT
-- **Frontend:** React 19, Vite, React Router, Material UI, Recharts
-- **Database:** PostgreSQL (with B-Tree indexes on search and ranking columns)
-- **Cache Layer:** Redis (`django.core.cache.backends.redis.RedisCache`) with targeted page cache invalidation
+- **Backend:** Python 3.12, Django 6, Django REST Framework, Simple JWT, Gunicorn WSGI
+- **Frontend:** React 19, Vite, React Router, Material UI, Recharts, Nginx Reverse Proxy
+- **Database:** PostgreSQL 17 (with B-Tree indexes on search and ranking columns)
+- **Cache Layer:** Redis 7 (`django.core.cache.backends.redis.RedisCache`) with targeted page cache invalidation
 - **Background Tasks & Scheduling:** Celery & Celery Beat backed by Redis message broker
   - Asynchronous email delivery with exponential backoff (verification & password reset)
   - Periodic 5-minute CoinGecko market synchronization & caching
 - **Security & Throttling:**
   - Secure HttpOnly & SameSite cookie-based refresh token rotation (zero `localStorage` storage)
   - DRF rate limiting & throttling (`AnonRateThrottle` & `UserRateThrottle`)
-- **Containerization & CI/CD:** Docker Compose multi-container architecture and GitHub Actions CI workflow
+  - Nginx Slowloris mitigation, response buffering, modern TLS (TLSv1.2/1.3), HSTS, and security headers
+- **Containerization & CI/CD:** Docker Compose (dev & prod configurations) and GitHub Actions CI workflow
 
 ---
 
@@ -53,9 +54,12 @@ PREX/
 │   │   ├── tasks.py             # Celery background tasks (market sync, email delivery)
 │   │   └── urls.py              # Versioned API routes (/api/v1/)
 │   ├── prex/                    # Django project settings (base, local, production) & celery.py
+│   ├── Dockerfile               # Backend Docker build with Gunicorn entrypoint
+│   ├── .dockerignore            # Excludes local environments (.env.*) and cache
 │   ├── manage.py
 │   ├── schema.sql               # PostgreSQL schema documentation
-│   └── APIs.md                  # Detailed API specification
+│   ├── APIs.md                  # Detailed API specification
+│   └── README.md
 ├── frontend/
 │   ├── src/
 │   │   ├── components/          # Reusable UI components (Navbar, CoinCard, ErrorBoundary, etc.)
@@ -65,11 +69,16 @@ PREX/
 │   │   ├── styles/              # Dedicated CSS styling
 │   │   ├── App.jsx              # React Router structure
 │   │   └── main.jsx             # Root entrypoint wrapped in ErrorBoundary
-│   ├── Dockerfile
-│   ├── nginx.conf
-│   └── package.json
-├── docker-compose.yml           # Multi-container orchestration (DB, Redis, Backend, Celery, Frontend)
-├── requirements.txt             # Python dependencies
+│   ├── Dockerfile               # Multi-stage production build (Node 22 build -> Nginx alpine)
+│   ├── nginx.conf               # Nginx HTTP reverse proxy, buffering, gzip & asset caching
+│   ├── nginx.ssl.conf           # Nginx TLS/SSL termination, HSTS, ACME challenge & HTTP->HTTPS
+│   ├── .dockerignore            # Excludes node_modules, build artifacts, and .env.*
+│   ├── .gitignore
+│   ├── package.json
+│   └── README.md
+├── docker-compose.yml           # Local development orchestration (with hot reloading)
+├── docker-compose.prod.yml      # Production orchestration (Gunicorn, isolated DB/Redis, immutable)
+├── requirements.txt             # Python dependencies (Django 6.1, DRF, Celery, Gunicorn, Cryptography)
 └── README.md
 ```
 
@@ -84,6 +93,10 @@ PREX/
   - HttpOnly and SameSite cookie refresh token rotation.
   - Password recovery with signed expirable reset tokens.
   - Public endpoint rate limiting against brute-force attacks.
+- **Production-Hardened Reverse Proxy:**
+  - Nginx handles TLS/SSL termination with modern ciphers (TLS 1.2/1.3) and HSTS.
+  - Request/response buffering protects Gunicorn from Slowloris attacks.
+  - Client-side static asset caching (30 days) and automated gzip compression.
 - **Asynchronous Background Processing:** Celery worker handles email delivery with automatic retries and scheduled 5-minute CoinGecko syncs.
 - **Targeted Cache Management:** Automatic initial seed on empty database and targeted page key invalidation preserving session/auth cache.
 - **Personalized Watchlists:** Create multiple watchlists, add/remove coins, and track coin memberships with synchronous UI updates.
@@ -92,37 +105,52 @@ PREX/
 
 ---
 
-## Quick Start & Local Setup
+## Quick Start & Setup
 
 ### Prerequisites
 
 - **Python 3.12+**
 - **Node.js 20+** and **npm**
-- **PostgreSQL 15+**
-- **Redis 7+**
+- **PostgreSQL 15+** (or Docker)
+- **Redis 7+** (or Docker)
 - **CoinGecko API key**
 - **SMTP credentials** (e.g. Gmail App Password)
 
 ---
 
-### Option A: Docker Compose (Recommended)
+### Option A: Docker Compose Deployment
 
-Run the entire application stack with a single command:
+#### 1. Local Development Mode (Hot-Reloading)
+Runs the full stack with local volume mounts for backend live-reloading:
 
 ```powershell
 docker compose up --build -d
 ```
 
+#### 2. Production Deployment Mode
+Runs hardened containers with Gunicorn WSGI workers, immutable build images, and internal network isolation for PostgreSQL and Redis:
+
+```powershell
+docker compose -f docker-compose.prod.yml up --build -d
+```
+
 #### Access Points:
-- **Frontend Application:** [http://localhost](http://localhost)
-- **Backend REST API:** [http://localhost:8000/api/v1/](http://localhost:8000/api/v1/)
+- **Frontend Application:** [http://localhost](http://localhost) (or [https://localhost](https://localhost) with SSL configured)
+- **Backend REST API:** [http://localhost:8000/api/v1/](http://localhost:8000/api/v1/) (or `/api/v1/` via Nginx proxy)
 - **Swagger UI Documentation:** [http://localhost:8000/api/v1/docs/](http://localhost:8000/api/v1/docs/)
-- **Health Check:** [http://localhost:8000/api/v1/health/](http://localhost:8000/api/v1/health/)
+- **Health Checks:**
+  - Backend API: [http://localhost:8000/api/v1/health/](http://localhost:8000/api/v1/health/)
+  - Nginx Gateway: [http://localhost/healthz](http://localhost/healthz)
 
 To view logs or stop containers:
 ```powershell
+# Development
 docker compose logs -f
 docker compose down
+
+# Production
+docker compose -f docker-compose.prod.yml logs -f
+docker compose -f docker-compose.prod.yml down
 ```
 
 ---
@@ -153,7 +181,7 @@ celery -A prex worker --loglevel=info
 # Start Celery Beat (in a separate terminal)
 celery -A prex beat --loglevel=info
 
-# Start Django Development Server
+# Start Django Server (or Gunicorn)
 python manage.py runserver 127.0.0.1:8000
 ```
 
@@ -175,22 +203,42 @@ The frontend will start at `http://localhost:5173`.
 
 ---
 
+### Production Nginx & SSL Configuration
+
+Two Nginx configuration templates are provided in `frontend/`:
+
+1. **[`frontend/nginx.conf`](frontend/nginx.conf) (Standard HTTP & Reverse Proxy)**:
+   - Upstream keepalive connection pooling to Gunicorn.
+   - Buffer tuning (`proxy_buffering on`, 128k/256k) to insulate Gunicorn from slow clients.
+   - 30-day static asset browser caching with gzip compression.
+   - SPA client-side routing fallback (`try_files $uri $uri/ /index.html`).
+   - Liveness probe endpoint at `/healthz`.
+
+2. **[`frontend/nginx.ssl.conf`](frontend/nginx.ssl.conf) (HTTPS & TLS Termination)**:
+   - Full TLS termination using modern ciphers (`TLSv1.2`, `TLSv1.3`).
+   - HTTP (80) to HTTPS (443) 301 redirection.
+   - Let's Encrypt ACME challenge passthrough (`/.well-known/acme-challenge/`).
+   - HSTS header enforcement (`Strict-Transport-Security`).
+   - Mount certificate files to `/etc/nginx/ssl/live/fullchain.pem` and `/etc/nginx/ssl/live/privkey.pem`.
+
+---
+
 ## Environment Variables
 
 ### Backend Configuration (`backend/.env` / `.env.docker`)
 
 | Variable | Description | Default / Example |
 | :--- | :--- | :--- |
-| `DJANGO_SETTINGS_MODULE` | Active Django settings module | `prex.settings.local` |
+| `DJANGO_SETTINGS_MODULE` | Active Django settings module | `prex.settings.local` / `prex.settings.production` |
 | `DJANGO_SECRET_KEY` | Secret key for cryptographic signing | `<strong-secret-key>` |
 | `DB_NAME` | PostgreSQL database name | `prex` |
 | `DB_USER` | PostgreSQL username | `postgres` |
 | `DB_PASSWORD` | PostgreSQL password | `postgres` |
 | `DB_HOST` | PostgreSQL host | `127.0.0.1` (or `db` in Docker) |
 | `DB_PORT` | PostgreSQL port | `5432` |
-| `REDIS_CACHE_URL` | Redis URL for Django Cache backend | `redis://127.0.0.1:6379/0` |
-| `CELERY_BROKER_URL` | Redis broker URL for Celery | `redis://127.0.0.1:6379/0` |
-| `CELERY_RESULT_BACKEND` | Redis result backend for Celery | `redis://127.0.0.1:6379/0` |
+| `REDIS_CACHE_URL` | Redis URL for Django Cache backend | `redis://127.0.0.1:6379/0` (or `redis://redis:6379/0`) |
+| `CELERY_BROKER_URL` | Redis broker URL for Celery | `redis://127.0.0.1:6379/0` (or `redis://redis:6379/0`) |
+| `CELERY_RESULT_BACKEND` | Redis result backend for Celery | `redis://127.0.0.1:6379/0` (or `redis://redis:6379/0`) |
 | `THROTTLE_ANON_RATE` | Anonymous rate limit | `30/minute` |
 | `THROTTLE_USER_RATE` | Authenticated rate limit | `120/minute` |
 | `EMAIL_HOST` | SMTP server host | `smtp.gmail.com` |
