@@ -223,6 +223,10 @@ PREX FLOW 1.png
 PREX FLOW 2.png
 prex_db_schema_erd.html
 
+# Postman collections & environments
+*.postman_collection.json
+*.postman_environment.json
+
 # Logs
 logs
 *.log

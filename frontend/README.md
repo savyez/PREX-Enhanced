@@ -28,7 +28,7 @@ frontend/
 │   ├── utils/auth.js       In-memory authentication state helpers
 │   ├── utils/formatters.js Consolidated number, currency, and time formatters
 │   └── main.jsx            Application entry point wrapped in ErrorBoundary
-├── Dockerfile              Multi-stage build (Node 22 build -> Nginx Alpine)
+├── Dockerfile              Multi-stage build (Node 24 build -> Nginx Alpine)
 ├── nginx.conf              HTTP reverse proxy, buffering, gzip, security headers & asset caching
 ├── nginx.ssl.conf          HTTPS/TLS termination, HTTP->HTTPS redirect, HSTS & ACME challenge
 ├── .dockerignore           Excludes node_modules, build artifacts, and .env.*
@@ -40,7 +40,7 @@ frontend/
 
 ## Requirements
 
-- Node.js 20+ and npm
+- Node.js 24+ and npm
 - A running PREX backend API
 
 Install dependencies from this directory:
@@ -156,7 +156,7 @@ Alerts are rendered in a top-right MUI Snackbar, automatically fade out after th
 
 ## Nginx Reverse Proxy & Production Server
 
-The frontend image uses a multi-stage Docker build (`frontend/Dockerfile`) that builds the Vite SPA using Node 22 and packages the resulting static assets into an optimized `nginx:alpine` image.
+The frontend image uses a multi-stage Docker build (`frontend/Dockerfile`) that builds the Vite SPA using Node 24 and packages the resulting static assets into an optimized `nginx:alpine` image.
 
 ### 1. Standard HTTP & Reverse Proxy Configuration (`nginx.conf`)
 - **Slowloris Mitigation & Buffering**: Configures `proxy_buffering on` with 128k/256k buffers to isolate Gunicorn workers from slow client connections.

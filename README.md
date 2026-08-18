@@ -69,7 +69,7 @@ PREX/
 │   │   ├── styles/              # Dedicated CSS styling
 │   │   ├── App.jsx              # React Router structure
 │   │   └── main.jsx             # Root entrypoint wrapped in ErrorBoundary
-│   ├── Dockerfile               # Multi-stage production build (Node 22 build -> Nginx alpine)
+│   ├── Dockerfile               # Multi-stage production build (Node 24 build -> Nginx alpine)
 │   ├── nginx.conf               # Nginx HTTP reverse proxy, buffering, gzip & asset caching
 │   ├── nginx.ssl.conf           # Nginx TLS/SSL termination, HSTS, ACME challenge & HTTP->HTTPS
 │   ├── .dockerignore            # Excludes node_modules, build artifacts, and .env.*
@@ -110,7 +110,7 @@ PREX/
 ### Prerequisites
 
 - **Python 3.12+**
-- **Node.js 20+** and **npm**
+- **Node.js 24+** and **npm**
 - **PostgreSQL 15+** (or Docker)
 - **Redis 7+** (or Docker)
 - **CoinGecko API key**
