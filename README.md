@@ -17,7 +17,7 @@ PREX is a modern, high-performance full-stack cryptocurrency tracking applicatio
   - Secure HttpOnly & SameSite cookie-based refresh token rotation (zero `localStorage` storage)
   - DRF rate limiting & throttling (`AnonRateThrottle` & `UserRateThrottle`)
   - Nginx Slowloris mitigation, response buffering, modern TLS (TLSv1.2/1.3), HSTS, and security headers
-- **Containerization & CI/CD:** Docker Compose (dev & prod configurations) and GitHub Actions CI workflow
+- **Containerization & CI/CD:** Docker Compose (dev & prod configurations), GitHub Actions CI/CD workflows, automated GHCR container builds, zero-downtime SSH deployments, and automated rollback health checks
 
 ---
 
@@ -27,7 +27,8 @@ PREX is a modern, high-performance full-stack cryptocurrency tracking applicatio
 PREX/
 ├── .github/
 │   └── workflows/
-│       └── ci.yml               # GitHub Actions CI workflow (Node 24, Python 3.12)
+│       ├── ci.yml               # GitHub Actions CI workflow (Node 24, Python 3.12)
+│       └── cd.yml               # GitHub Actions CD workflow (GHCR build/push, SSH deploy, rollback)
 ├── backend/
 │   ├── api/
 │   │   ├── migrations/          # Django database migrations
@@ -76,8 +77,15 @@ PREX/
 │   ├── .gitignore
 │   ├── package.json
 │   └── README.md
+├── deploy/                      # Production deployment configurations
+│   ├── .env.production.example  # Production environment variable reference template
+│   └── systemd/prex.service     # Systemd service unit for host autostart
+├── scripts/                     # Automation & operations scripts
+│   ├── deploy.sh                # Zero-downtime deployment, migration & rollback manager
+│   └── server-setup.sh          # One-click Ubuntu server provisioning script
 ├── docker-compose.yml           # Local development orchestration (with hot reloading)
 ├── docker-compose.prod.yml      # Production orchestration (Gunicorn, isolated DB/Redis, immutable)
+├── DEPLOYMENT.md                # Comprehensive CD, secrets & production deployment guide
 ├── requirements.txt             # Python dependencies (Django 6.1, DRF, Celery, Gunicorn, Cryptography)
 └── README.md
 ```
@@ -275,6 +283,20 @@ cd frontend
 npm run lint
 npm run build
 ```
+
+---
+
+## Continuous Deployment (CD)
+
+PREX features automated Continuous Deployment powered by GitHub Actions:
+
+- **CD Pipeline ([`.github/workflows/cd.yml`](.github/workflows/cd.yml)):** Triggered on push to `main`/`master`, release tags (`v*.*.*`), or manually via `workflow_dispatch`.
+  1. **Build & Push:** Builds multi-stage Docker images with layer caching and pushes to **GitHub Container Registry (GHCR)**.
+  2. **SSH Deploy:** Connects securely to the target production server, pulls immutable image tags, executes database migrations, collects static assets, and applies zero-downtime rolling updates.
+  3. **Health Checks & Rollback:** Probes `/healthz` and `/api/v1/health/` with retries. Automatically rolls back to the previous stable release if health checks fail.
+  4. **Summary Reporting:** Posts a deployment report to GitHub Step Summary.
+
+For full server provisioning guides, GitHub Secrets setup, and rollback instructions, see [**`DEPLOYMENT.md`**](DEPLOYMENT.md).
 
 ---
 

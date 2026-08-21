@@ -48,6 +48,7 @@ services:
   # 3. Django Web API Backend Service (Gunicorn WSGI)
   # =========================================================================
   backend:
+    image: ${BACKEND_IMAGE:-prex_backend_prod:latest}
     build:
       context: .
       dockerfile: backend/Dockerfile
@@ -69,6 +70,7 @@ services:
   # 4. Celery Asynchronous Task Worker Service
   # =========================================================================
   celery_worker:
+    image: ${BACKEND_IMAGE:-prex_backend_prod:latest}
     build:
       context: .
       dockerfile: backend/Dockerfile
@@ -87,6 +89,7 @@ services:
   # 5. Celery Beat Periodic Task Scheduler Service
   # =========================================================================
   celery_beat:
+    image: ${BACKEND_IMAGE:-prex_backend_prod:latest}
     build:
       context: .
       dockerfile: backend/Dockerfile
@@ -105,11 +108,12 @@ services:
   # 6. React Frontend & Nginx Reverse Proxy Service
   # =========================================================================
   frontend:
+    image: ${FRONTEND_IMAGE:-prex_frontend_prod:latest}
     build:
       context: .
       dockerfile: frontend/Dockerfile
       args:
-        VITE_API_BASE_URL: /api/v1
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-/api/v1}
     container_name: prex_frontend_prod
     restart: always
     ports:
