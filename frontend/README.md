@@ -1,213 +1,197 @@
 # PREX Frontend
 
-The PREX frontend is a React single-page application built with Vite. It provides cryptocurrency browsing and search, seven-day price charts, authentication screens, profile settings, watchlist management, responsive navigation, MUI alert notifications, and containerized Nginx reverse proxy deployment with TLS/SSL termination support.
+The PREX frontend is a modern React single-page application built with Vite. It provides cryptocurrency market browsing, instant coin search, 7-day interactive price charts, authenticated profile & watchlist management, responsive navigation, MUI alert notifications, and containerized Nginx reverse proxy deployment with full TLS/SSL termination support.
 
-## Stack
+---
 
-- React 19
-- Vite 8
-- React Router
-- Material UI and Emotion
-- Recharts
-- Nginx (Alpine-based reverse proxy and static asset server)
+## Technology Stack
+
+- **React 19**
+- **Vite 8**
+- **React Router**
+- **Material UI (MUI)** & Emotion
+- **Recharts** (interactive 7-day price charts)
+- **Nginx** (Alpine-based reverse proxy, static asset server & TLS termination)
+
+---
 
 ## Project Structure
 
 ```text
 frontend/
-├── public/                 Static files and icons
+├── public/                 # Static public assets, favicon and icons
 ├── src/
-│   ├── assets/             Images such as the CoinGecko attribution asset
-│   ├── components/         App shell, ErrorBoundary, navigation, cards, charts and form controls
-│   ├── context/            Authentication, watchlist and alert providers
-│   ├── hooks/              Reusable chart-data hooks
-│   ├── modals/             Confirmation and watchlist creation dialogs
-│   ├── pages/              Route-level screens
-│   ├── styles/             Shared, component and page stylesheets
-│   ├── utils/api.js        Centralized API requests with silent token refresh
-│   ├── utils/auth.js       In-memory authentication state helpers
-│   ├── utils/formatters.js Consolidated number, currency, and time formatters
-│   └── main.jsx            Application entry point wrapped in ErrorBoundary
-├── Dockerfile              Multi-stage build (Node 24 build -> Nginx Alpine)
-├── nginx.conf              HTTP reverse proxy, buffering, gzip, security headers & asset caching
-├── nginx.ssl.conf          HTTPS/TLS termination, HTTP->HTTPS redirect, HSTS & ACME challenge
-├── .dockerignore           Excludes node_modules, build artifacts, and .env.*
+│   ├── assets/             # CoinGecko attribution branding and vector images
+│   ├── components/         # Reusable UI components (Navbar, CoinCard, ErrorBoundary, etc.)
+│   ├── context/            # AuthContext, AlertContext, and WatchlistContext providers
+│   ├── hooks/              # Reusable hooks (useChartData, etc.)
+│   ├── modals/             # Modal dialogs (Create Watchlist, Delete Confirmation, etc.)
+│   ├── pages/              # Route-level page components
+│   │   ├── Home.jsx            # Landing hero & market overview
+│   │   ├── Prices.jsx          # Paginated cryptocurrency market list
+│   │   ├── Search.jsx          # Search results and coin charting screen
+│   │   ├── Watchlist.jsx       # Personalized watchlist management
+│   │   ├── Login.jsx           # User authentication login
+│   │   ├── Register.jsx        # User account registration
+│   │   ├── VerifyEmail.jsx     # Email token verification
+│   │   ├── PasswordReset.jsx   # Password reset request & confirmation
+│   │   ├── Profile.jsx         # User profile settings
+│   │   └── ...
+│   ├── styles/             # Shared component and page stylesheets
+│   ├── utils/
+│   │   ├── api.js              # Centralized API fetch wrapper with silent token refresh
+│   │   ├── auth.js             # In-memory access token storage and auth utilities
+│   │   └── formatters.js       # Centralized number, currency, and date formatters
+│   ├── App.jsx             # React Router layout and route definitions
+│   └── main.jsx            # Application entry point wrapped in ErrorBoundary
+├── Dockerfile              # Multi-stage build (Node 24 build -> Nginx Alpine)
+├── nginx.conf              # HTTP reverse proxy, buffering, gzip, security headers & asset caching
+├── nginx.ssl.conf          # HTTPS/TLS termination, HTTP->HTTPS redirect, HSTS & ACME challenge
+├── .dockerignore           # Excludes node_modules, build artifacts, and .env.*
 ├── .env.example
 ├── eslint.config.js
 ├── package.json
 └── vite.config.js
 ```
 
+---
+
 ## Requirements
 
-- Node.js 24+ and npm
-- A running PREX backend API
+- **Node.js 24+** and **npm**
+- Running **PREX Backend API**
 
-Install dependencies from this directory:
+Install dependencies from `frontend/`:
 
 ```powershell
 npm install
 ```
 
+---
+
 ## Environment Configuration
 
 Create `frontend/.env` from `frontend/.env.example`.
 
-For local development:
-
+### Local Development:
 ```env
 VITE_API_BASE_URL=http://127.0.0.1:8000/api/v1
 ```
 
-For production or Docker Compose:
-
+### Production / Docker:
 ```env
 VITE_API_BASE_URL=/api/v1
 ```
 
-The production Vite build fails when `VITE_API_BASE_URL` is missing. Only variables prefixed with `VITE_` are exposed to browser code, so never put private secrets in frontend environment files.
+> [!NOTE]
+> Only environment variables prefixed with `VITE_` are exposed to the browser client code. Never store secrets in frontend environment files.
+
+---
 
 ## Development
 
-Start the development server:
+Start the local Vite development server:
 
 ```powershell
 npm run dev
 ```
 
-Vite normally serves the application at `http://localhost:5173`.
+The frontend will be available at `http://localhost:5173`.
 
-The backend must allow the frontend origin through `CORS_ALLOWED_ORIGINS`.
+---
 
 ## Application Routes
 
-| Route | Purpose |
-|---|---|
-| `/` | Home page |
-| `/prices` | Paginated cryptocurrency market data |
-| `/search` | Search screen before a query is selected |
-| `/coins/search/:coinId` | Search results and seven-day chart for a query |
-| `/watchlist` | Authenticated watchlist management |
-| `/login` | Login form |
-| `/register` | Registration form |
-| `/verification-pending` | Email verification guidance |
-| `/profile` | Authenticated profile update screen |
-| `/settings` | Authenticated account settings |
-| `/logout` | Clears the local session and attempts server logout |
-| `/about` | About page |
-| `/contact` | Contact page |
-| `/privacy` | Privacy page |
+| Route | Purpose | Access |
+| :--- | :--- | :--- |
+| `/` | Landing page and market overview | Public |
+| `/prices` | Paginated cryptocurrency market list | Public |
+| `/search` | Coin search interface | Public |
+| `/coins/search/:coinId` | Coin details and 7-day interactive chart | Public |
+| `/watchlist` | Personalized watchlist management | Authenticated |
+| `/login` | User login screen | Public |
+| `/register` | Account registration form | Public |
+| `/verification-pending` | Verification guidance screen | Public |
+| `/verify-email` | Email verification token handler | Public |
+| `/reset-password` | Password reset request | Public |
+| `/reset-password-confirm` | Password reset confirmation | Public |
+| `/profile` | User profile management | Authenticated |
+| `/settings` | Account settings | Authenticated |
+| `/logout` | Clears user session and logs out | Authenticated |
+| `/about` | About PREX | Public |
+| `/contact` | Contact support | Public |
+| `/privacy` | Privacy policy | Public |
 
-Routes are lazy-loaded with `React.lazy` and rendered inside a shared `Suspense` loading state.
+All route components are lazy-loaded with `React.lazy()` and wrapped in a shared `Suspense` loading fallback.
 
-## Application Flow
+---
 
-### App Shell
+## Core Architecture & Components
 
-`main.jsx` wraps the application in a global `ErrorBoundary` to gracefully catch unhandled component crashes. `App.jsx` creates the browser router and wraps the component tree with:
+### 1. Error Boundary & UI Resilience
+`src/components/ErrorBoundary.jsx` wraps the root React application:
+- Intercepts uncaught runtime rendering errors (e.g. malformed chart data or network timeouts).
+- Prevents full-screen whiteout crashes by providing a friendly fallback screen.
+- Offers direct user recovery actions: **Try Again** (resets component error state), **Reload Page**, and **Go to Home**.
+- Displays formatted stack traces exclusively in development mode (`import.meta.env.DEV`).
 
-1. `AuthProvider` for session restoration and expiration handling
-2. `AlertProvider` for temporary MUI Snackbar alerts
-3. `WatchlistProvider` for watchlists and coin membership data
-4. `AppContent` for the navbar, route content and footer
+### 2. Authentication & Token Security Architecture
+- **HttpOnly Refresh Cookies**: Refresh tokens are stored strictly in `HttpOnly`, `SameSite=Lax`, `Secure` browser cookies issued by Django, eliminating JavaScript token access and preventing XSS vulnerabilities.
+- **In-Memory Access Tokens**: Short-lived JWT access tokens are held strictly in memory (`inMemoryAccessToken` closure) and never written to `localStorage` or `sessionStorage`.
+- **Silent Refresh**: On page load, `AuthProvider` calls `POST /api/v1/auth/token/refresh/` using `credentials: 'include'` to restore the user session seamlessly.
+- **Request Interception & Automatic Retry**: `api.js` catches `401 Unauthorized` responses, triggers a silent refresh, updates the in-memory access token, and transparently retries the initial request.
 
-### Error Boundary & Recovery
+### 3. Watchlist State Synchronization & Access Control
+- **Authentication Protected**: Unauthenticated visitors accessing `/watchlist` are presented with a clear prompt ("You need to login to see/create watchlist") and a direct **Login** button redirecting them to `/login`.
+- `WatchlistProvider` manages state for watchlists with immediate, optimistic UI updates.
+- Adding or removing coins uses the payload returned directly from the backend, avoiding redundant full `getWatchlists` network requests.
+- A reactive `membershipMap` is derived synchronously via `useMemo`, ensuring `Add to Watchlist` / `Manage (N)` buttons update instantly across cards and search results.
 
-`src/components/ErrorBoundary.jsx` wraps the React root:
-- Intercepts uncaught runtime errors (e.g. malformed chart payloads, modal rendering exceptions) to prevent full-screen blank page crashes.
-- Provides accessible recovery actions: **Try Again** (resets local error state), **Reload Page**, and **Go to Home**.
-- Renders detailed stack traces exclusively in development mode (`import.meta.env.DEV`).
-- Supports an optional `fallback` prop for isolated component boundaries.
-
-### Authentication & Token Security
-
-- **HttpOnly Refresh Tokens**: Refresh tokens are stored strictly in `HttpOnly`, `SameSite=Lax`, `Secure` browser cookies set by Django, preventing token theft via XSS.
-- **Zero LocalStorage Tokens**: No tokens or sensitive user credentials are saved in browser `localStorage`.
-- **In-Memory Access Tokens**: Short-lived JWT access tokens are held strictly in memory (`inMemoryAccessToken` closure).
-- **Silent Rotation**: Outgoing fetch requests use `credentials: 'include'`. The `AuthProvider` automatically restores sessions on reload via `POST /token/refresh/`.
-- **Automatic Retries**: `api.js` intercepts `401 Unauthorized` responses and silently refreshes the access token once before retrying the original request.
-- **Expiration Handling**: Dispatches an `authfailure` event to cleanly clear state and redirect users to `/login`.
-
-### Watchlists & State Synchronization
-
-- `WatchlistProvider` manages watchlists and provides immediate, optimistic-like updates:
-  - Adding or removing coins consumes the updated watchlist returned directly by the backend endpoint, avoiding redundant full `getWatchlists` roundtrips.
-  - A reactive `membershipMap` is derived synchronously via `useMemo`, ensuring `Add to Watchlist` / `Manage (N)` buttons update instantly across cards and search results.
-
-### Formatting Utilities (DRY Principle)
-
-`src/utils/formatters.js` provides centralized, reusable formatting functions:
-- `formatPrice(price)`: Localized decimal precision (2 decimal places for integers, up to 6 for float prices).
-- `formatPriceChange(change)`: Signed 24-hour percentage strings (e.g., `+2.50%` or `-1.20%`).
+### 4. Consolidated Formatting Utilities (`formatters.js`)
+- `formatPrice(price)`: Localized decimal precision (2 decimal places for large prices, up to 6 for micro-cap tokens).
+- `formatPriceChange(change)`: Signed 24-hour percentage strings (e.g. `+3.45%`, `-1.20%`).
 - `getPriceChangeClass(change)`: Returns semantic CSS class names (`price-up`, `price-down`, `price-neutral`).
 - `formatCurrency(amount)`: USD currency string formatter.
 - `formatTime(date)`: 12-hour AM/PM timestamp string formatter.
 
-### Alerts
+---
 
-Use `useAlert()` for user-facing action feedback:
+## Nginx Reverse Proxy & Environment Configurations
 
-```jsx
-const { showAlert } = useAlert();
-showAlert('Coin added to your watchlist.', 'success');
-```
+The frontend container image (`frontend/Dockerfile`) utilizes a multi-stage build:
+1. **Build Stage:** Installs Node 24 dependencies and compiles the Vite application into static assets (`dist/`).
+2. **Runtime Stage:** Copies compiled assets into an Alpine Nginx image with reverse proxy configurations.
 
-Alerts are rendered in a top-right MUI Snackbar, automatically fade out after three seconds, and support `success`, `info`, `warning`, and `error` severities.
-
-## Nginx Reverse Proxy & Production Server
-
-The frontend image uses a multi-stage Docker build (`frontend/Dockerfile`) that builds the Vite SPA using Node 24 and packages the resulting static assets into an optimized `nginx:alpine` image.
-
-### 1. Standard HTTP & Reverse Proxy Configuration (`nginx.conf`)
-- **Slowloris Mitigation & Buffering**: Configures `proxy_buffering on` with 128k/256k buffers to isolate Gunicorn workers from slow client connections.
+### 1. Development / Default HTTP Configuration (`nginx.conf`)
+- **Default in Dockerfile**: Default container builds use `nginx.conf` so the app runs out-of-the-box locally on port 80 without requiring SSL certificates.
+- **Slowloris Mitigation**: Configures `proxy_buffering on` with 128k/256k buffers to isolate upstream Gunicorn workers.
 - **Connection Keepalive**: Upstream keepalive connection pool (`keepalive 32`) to the backend service.
 - **Static Asset Caching**: 30-day client browser caching (`Cache-Control: public, no-transform`) for JavaScript bundles, CSS, images, and fonts.
-- **Gzip Compression**: Compresses text, JSON, JS, CSS, and SVG payloads on the fly.
-- **SPA Routing Fallback**: `try_files $uri $uri/ /index.html` ensures client-side routing works seamlessly on direct page visits and refreshes.
-- **Health Check**: Fast, unlogged `/healthz` endpoint returning HTTP 200 for cloud load balancers.
+- **Gzip Compression**: Compresses text, JSON, JS, CSS, and SVG payloads.
+- **SPA Routing Fallback**: `try_files $uri $uri/ /index.html` ensures client-side routing works on direct page navigation and refreshes.
+- **Liveness Probe**: Fast `/healthz` endpoint returning HTTP 200 for health checks.
 
-### 2. HTTPS & TLS Termination Configuration (`nginx.ssl.conf`)
+### 2. Production HTTPS & TLS Termination (`nginx.ssl.conf`)
 - **Modern Cryptography**: Enforces `TLSv1.2` and `TLSv1.3` protocols and modern forward-secret ciphers.
 - **Automatic 301 Redirect**: Redirects all port 80 (HTTP) traffic to port 443 (HTTPS) while preserving query paths.
 - **Let's Encrypt Support**: Passes `/.well-known/acme-challenge/` to `/var/www/certbot` for automated SSL renewals.
 - **Enterprise Security Headers**: Sets `Strict-Transport-Security` (HSTS), `X-Frame-Options: SAMEORIGIN`, `X-Content-Type-Options: nosniff`, and `Referrer-Policy`.
-- **Certificate Mounting**: Expects certificate files at:
-  - `/etc/nginx/ssl/live/fullchain.pem`
-  - `/etc/nginx/ssl/live/privkey.pem`
+- **Certificate Mounting**: Mounted in `docker-compose.prod.yml` at `/etc/nginx/ssl/live/fullchain.pem` and `/etc/nginx/ssl/live/privkey.pem`.
 
-## Scripts
+---
 
-Run these from `frontend/`:
+## Scripts Reference
 
 ```powershell
-# Start Vite development mode
+# Start local development server
 npm run dev
 
-# Run ESLint across the frontend
+# Run ESLint validation
 npm run lint
 
-# Create an optimized production build in dist/
+# Build optimized production bundle to dist/
 npm run build
 
 # Preview the production build locally
 npm run preview
 ```
-
-## Production Build
-
-Set the production API URL before building:
-
-```powershell
-$env:VITE_API_BASE_URL="/api/v1"
-npm run lint
-npm run build
-```
-
-Deploy the generated `dist/` directory or run the containerized service via `docker-compose.prod.yml`.
-
-## Safety & Best Practices
-
-- Do not place API keys, database credentials or Django secrets in `VITE_` variables.
-- Use HTTPS for all production deployments (`nginx.ssl.conf`).
-- Configure backend `CORS_ALLOWED_ORIGINS` to strictly match your production domain.
-- Never store tokens in `localStorage` or `sessionStorage` (handled automatically via HttpOnly cookies and in-memory tokens).

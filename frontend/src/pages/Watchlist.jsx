@@ -18,7 +18,7 @@ import {
 } from '../utils/formatters.js';
 
 function Watchlist() {
-    const { user } = useAuth();
+    const { user, authenticated, loading: authLoading } = useAuth();
     const { watchlists, loading, error, refreshWatchlists, removeCoin } = useWatchlist();
     const [selectedWatchlistId, setSelectedWatchlistId] = useState('');
     const [showCreateModal, setShowCreateModal] = useState(false);
@@ -82,11 +82,17 @@ function Watchlist() {
 
     return (
         <main className="watchlist-page">
-            {loading && watchlists.length === 0 ? (
+            {authLoading || (loading && watchlists.length === 0) ? (
                 <div className="watchlist-status">Loading watchlists...</div>
+            ) : !authenticated ? (
+                <div className="empty-watchlist">
+                    <h2 className="empty-watchlist-title">You need to login to see/create watchlist</h2>
+                    <p>Please log in to your account to view your saved coins or create new watchlists.</p>
+                    <Button className="explore-prices" name="Login" href="/login" />
+                </div>
             ) : error ? (
                 <div className="watchlist-error">{error}</div>
-            ) : !loading && !error && watchlists.length > 0 ? (
+            ) : watchlists.length > 0 ? (
                 <div className="watchlist-container">
                     <div className="watchlist-sidebar">
                         <h3>My Watchlists <button 
@@ -169,7 +175,6 @@ function Watchlist() {
                     </div>
                 </div>
             ) : (
-                !loading && !error && (
                 <div className="empty-watchlist">
                     <h2 className="empty-watchlist-title">Have Coins to Track?</h2>
                     <p>Create a watchlist to start tracking your favorite coins. Once you create a watchlist, you can add coins from the prices page.</p>
@@ -184,17 +189,16 @@ function Watchlist() {
                     </p>
                     <Button className="explore-prices" name="Explore Coins" href="/prices" />
                 </div>
-                )
             )}
 
-            {showCreateModal && (
+            {authenticated && showCreateModal && (
                 <CreateWatchlistModal
                     onClose={() => setShowCreateModal(false)}
                     onSuccess={handleCreateWatchlistSuccess}
                 />
             )}
 
-            {watchlistToDelete && (
+            {authenticated && watchlistToDelete && (
                 <ConfirmationModal
                     title={`Delete ${watchlistToDelete.name}? `}
                     message="This action cannot be undone."
@@ -207,7 +211,7 @@ function Watchlist() {
                 />
             )}
 
-            {coinToRemove && (
+            {authenticated && coinToRemove && (
                 <ConfirmationModal
                     title={`Remove ${coinToRemove.ticker.coin_name} from ${selectedWatchlist.name}?`}
                     message={`This action can not be undone.`}

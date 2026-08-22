@@ -7,14 +7,14 @@ PREX is a modern, high-performance full-stack cryptocurrency tracking applicatio
 ## Architecture & Technology Stack
 
 - **Backend:** Python 3.12, Django 6, Django REST Framework, Simple JWT, Gunicorn WSGI
-- **Frontend:** React 19, Vite, React Router, Material UI, Recharts, Nginx Reverse Proxy
+- **Frontend:** React 19, Vite 8, React Router, Material UI, Recharts, Nginx Reverse Proxy
 - **Database:** PostgreSQL 17 (with B-Tree indexes on search and ranking columns)
 - **Cache Layer:** Redis 7 (`django.core.cache.backends.redis.RedisCache`) with targeted page cache invalidation
 - **Background Tasks & Scheduling:** Celery & Celery Beat backed by Redis message broker
   - Asynchronous email delivery with exponential backoff (verification & password reset)
   - Periodic 5-minute CoinGecko market synchronization & caching
 - **Security & Throttling:**
-  - Secure HttpOnly & SameSite cookie-based refresh token rotation (zero `localStorage` storage)
+  - Secure HttpOnly & SameSite cookie-based refresh token rotation (zero `localStorage` token storage)
   - DRF rate limiting & throttling (`AnonRateThrottle` & `UserRateThrottle`)
   - Nginx Slowloris mitigation, response buffering, modern TLS (TLSv1.2/1.3), HSTS, and security headers
 - **Containerization & CI/CD:** Docker Compose (dev & prod configurations), GitHub Actions CI/CD workflows, automated GHCR container builds, zero-downtime SSH deployments, and automated rollback health checks
@@ -27,7 +27,7 @@ PREX is a modern, high-performance full-stack cryptocurrency tracking applicatio
 PREX/
 ├── .github/
 │   └── workflows/
-│       ├── ci.yml               # GitHub Actions CI workflow (Node 24, Python 3.12)
+│       ├── ci.yml               # GitHub Actions CI workflow (Node 24, Python 3.12, tests & lint)
 │       └── cd.yml               # GitHub Actions CD workflow (GHCR build/push, SSH deploy, rollback)
 ├── backend/
 │   ├── api/
@@ -107,9 +107,22 @@ PREX/
   - Client-side static asset caching (30 days) and automated gzip compression.
 - **Asynchronous Background Processing:** Celery worker handles email delivery with automatic retries and scheduled 5-minute CoinGecko syncs.
 - **Targeted Cache Management:** Automatic initial seed on empty database and targeted page key invalidation preserving session/auth cache.
-- **Personalized Watchlists:** Create multiple watchlists, add/remove coins, and track coin memberships with synchronous UI updates.
+- **Personalized Watchlists:** Authenticated watchlist management allowing users to create multiple watchlists, track favorite coins, and sync memberships across views with immediate UI updates (unauthenticated visitors are prompted to log in).
 - **Global Error Boundary:** Root-level React Error Boundary for graceful UI crash recovery.
 - **OpenAPI / Swagger Documentation:** Interactive API documentation available at `/api/v1/docs/`.
+
+---
+
+## Environment & Configuration Architecture
+
+PREX uses a unified codebase with clean separation between **Local Development** and **Production**:
+
+| Component | Local Development (Dev) | Production (Prod) |
+| :--- | :--- | :--- |
+| **Docker Compose** | [`docker-compose.yml`](docker-compose.yml) (hot-reloading, exposed DB/Redis ports, HTTP) | [`docker-compose.prod.yml`](docker-compose.prod.yml) (immutable images, isolated DB/Redis, HTTPS) |
+| **Nginx Proxy** | [`frontend/nginx.conf`](frontend/nginx.conf) (HTTP port 80, no SSL required) | [`frontend/nginx.ssl.conf`](frontend/nginx.ssl.conf) (HTTPS port 443, Let's Encrypt TLS & HSTS) |
+| **Django Settings** | `prex.settings.local` (`DEBUG=True`, relaxed CORS) | `prex.settings.production` (`DEBUG=False`, secure cookies & strict hosts) |
+| **Frontend Base URL**| `http://127.0.0.1:8000/api/v1` (Vite dev) or `/api/v1` (Docker) | `/api/v1` (Nginx reverse proxy) |
 
 ---
 
@@ -129,21 +142,25 @@ PREX/
 ### Option A: Docker Compose Deployment
 
 #### 1. Local Development Mode (Hot-Reloading)
-Runs the full stack with local volume mounts for backend live-reloading:
+Runs the full stack locally over HTTP. The backend mounts local directories for live code reloads:
 
 ```powershell
 docker compose up --build -d
 ```
 
+> [!TIP]
+> To rebuild only the frontend after making React changes:
+> `docker compose up -d --build frontend`
+
 #### 2. Production Deployment Mode
-Runs hardened containers with Gunicorn WSGI workers, immutable build images, and internal network isolation for PostgreSQL and Redis:
+Runs hardened containers with Gunicorn WSGI workers, immutable build images, internal network isolation, and TLS/SSL termination:
 
 ```powershell
 docker compose -f docker-compose.prod.yml up --build -d
 ```
 
 #### Access Points:
-- **Frontend Application:** [http://localhost](http://localhost) (or [https://localhost](https://localhost) with SSL configured)
+- **Frontend Application:** [http://localhost](http://localhost) (or [https://prex.duckdns.org](https://prex.duckdns.org) in production)
 - **Backend REST API:** [http://localhost:8000/api/v1/](http://localhost:8000/api/v1/) (or `/api/v1/` via Nginx proxy)
 - **Swagger UI Documentation:** [http://localhost:8000/api/v1/docs/](http://localhost:8000/api/v1/docs/)
 - **Health Checks:**
@@ -189,7 +206,7 @@ celery -A prex worker --loglevel=info
 # Start Celery Beat (in a separate terminal)
 celery -A prex beat --loglevel=info
 
-# Start Django Server (or Gunicorn)
+# Start Django Server
 python manage.py runserver 127.0.0.1:8000
 ```
 
@@ -211,26 +228,6 @@ The frontend will start at `http://localhost:5173`.
 
 ---
 
-### Production Nginx & SSL Configuration
-
-Two Nginx configuration templates are provided in `frontend/`:
-
-1. **[`frontend/nginx.conf`](frontend/nginx.conf) (Standard HTTP & Reverse Proxy)**:
-   - Upstream keepalive connection pooling to Gunicorn.
-   - Buffer tuning (`proxy_buffering on`, 128k/256k) to insulate Gunicorn from slow clients.
-   - 30-day static asset browser caching with gzip compression.
-   - SPA client-side routing fallback (`try_files $uri $uri/ /index.html`).
-   - Liveness probe endpoint at `/healthz`.
-
-2. **[`frontend/nginx.ssl.conf`](frontend/nginx.ssl.conf) (HTTPS & TLS Termination)**:
-   - Full TLS termination using modern ciphers (`TLSv1.2`, `TLSv1.3`).
-   - HTTP (80) to HTTPS (443) 301 redirection.
-   - Let's Encrypt ACME challenge passthrough (`/.well-known/acme-challenge/`).
-   - HSTS header enforcement (`Strict-Transport-Security`).
-   - Mount certificate files to `/etc/nginx/ssl/live/fullchain.pem` and `/etc/nginx/ssl/live/privkey.pem`.
-
----
-
 ## Environment Variables
 
 ### Backend Configuration (`backend/.env` / `.env.docker`)
@@ -239,6 +236,9 @@ Two Nginx configuration templates are provided in `frontend/`:
 | :--- | :--- | :--- |
 | `DJANGO_SETTINGS_MODULE` | Active Django settings module | `prex.settings.local` / `prex.settings.production` |
 | `DJANGO_SECRET_KEY` | Secret key for cryptographic signing | `<strong-secret-key>` |
+| `DJANGO_ALLOWED_HOSTS` | Allowed host headers (production) | `prex.duckdns.org,localhost,127.0.0.1` |
+| `CORS_ALLOWED_ORIGINS` | Allowed origins for CORS | `https://prex.duckdns.org,http://localhost:5173` |
+| `CSRF_TRUSTED_ORIGINS` | Trusted origins for CSRF | `https://prex.duckdns.org` |
 | `DB_NAME` | PostgreSQL database name | `prex` |
 | `DB_USER` | PostgreSQL username | `postgres` |
 | `DB_PASSWORD` | PostgreSQL password | `postgres` |
@@ -255,14 +255,14 @@ Two Nginx configuration templates are provided in `frontend/`:
 | `EMAIL_HOST_PASSWORD` | SMTP password / app password | `<smtp-app-password>` |
 | `EMAIL_USE_TLS` | Enable TLS encryption | `True` |
 | `COINGECKO_API_KEY` | CoinGecko API key | `<your-coingecko-key>` |
-| `EMAIL_VERIFICATION_URL` | Verification link redirect URL | `http://localhost:5173/verify-email` |
-| `PASSWORD_RESET_URL` | Password reset link redirect URL | `http://localhost:5173/reset-password-confirm` |
+| `EMAIL_VERIFICATION_URL` | Verification link redirect URL | `https://prex.duckdns.org/verify-email` |
+| `PASSWORD_RESET_URL` | Password reset link redirect URL | `https://prex.duckdns.org/reset-password-confirm` |
 
 ### Frontend Configuration (`frontend/.env`)
 
 | Variable | Description | Default / Example |
 | :--- | :--- | :--- |
-| `VITE_API_BASE_URL` | Base endpoint for backend API | `http://127.0.0.1:8000/api/v1` (or `/api/v1` in Docker) |
+| `VITE_API_BASE_URL` | Base endpoint for backend API | `http://127.0.0.1:8000/api/v1` (dev) or `/api/v1` (Docker/prod) |
 
 ---
 
@@ -286,17 +286,17 @@ npm run build
 
 ---
 
-## Continuous Deployment (CD)
+## Continuous Deployment (CD) & Production
 
 PREX features automated Continuous Deployment powered by GitHub Actions:
 
 - **CD Pipeline ([`.github/workflows/cd.yml`](.github/workflows/cd.yml)):** Triggered on push to `main`/`master`, release tags (`v*.*.*`), or manually via `workflow_dispatch`.
   1. **Build & Push:** Builds multi-stage Docker images with layer caching and pushes to **GitHub Container Registry (GHCR)**.
-  2. **SSH Deploy:** Connects securely to the target production server, pulls immutable image tags, executes database migrations, collects static assets, and applies zero-downtime rolling updates.
+  2. **SSH Deploy:** Connects securely to the target production server (`appleboy/ssh-action`), pulls immutable image tags, executes database migrations, collects static assets, and applies zero-downtime rolling updates.
   3. **Health Checks & Rollback:** Probes `/healthz` and `/api/v1/health/` with retries. Automatically rolls back to the previous stable release if health checks fail.
   4. **Summary Reporting:** Posts a deployment report to GitHub Step Summary.
 
-For full server provisioning guides, GitHub Secrets setup, and rollback instructions, see [**`DEPLOYMENT.md`**](DEPLOYMENT.md).
+For server provisioning instructions, DuckDNS + SSL setup, and GitHub Secrets configuration, see [**`DEPLOYMENT.md`**](DEPLOYMENT.md).
 
 ---
 

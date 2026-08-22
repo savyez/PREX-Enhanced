@@ -147,7 +147,7 @@ jobs:
     needs: [build-and-push]
     environment:
       name: ${{ inputs.environment || 'production' }}
-      url: ${{ vars.APP_URL || 'https://localhost' }}
+      url: ${{ vars.APP_URL || 'https://prex.duckdns.org' }}
 
     steps:
       - name: Checkout repository
@@ -305,7 +305,7 @@ jobs:
           | **Deploy Execution** | ${{ needs.deploy.result }} |
 
           ### 🔗 Endpoints & Verification
-          - **Public Web Application:** ${{ vars.APP_URL || 'https://your-domain.com' }}
+          - **Public Web Application:** ${{ vars.APP_URL || 'https://prex.duckdns.org' }}
           - **API Health Status:** \`/api/v1/health/\`
           - **Nginx Liveness Probe:** \`/healthz\`
           - **OpenAPI Schema:** \`/api/v1/docs/\`
