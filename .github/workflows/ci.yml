@@ -1,4 +1,4 @@
-name: Continuous Integration
+name: Continuous Integration (CI)
 
 on:
   push:
@@ -6,6 +6,8 @@ on:
       - main
       - master
       - dev
+    tags:
+      - 'v*.*.*'
   pull_request:
     branches:
       - main
@@ -13,7 +15,17 @@ on:
       - dev
   workflow_dispatch:
 
+permissions:
+  contents: read
+  packages: write
+
+env:
+  REGISTRY: ghcr.io
+
 jobs:
+  # ===========================================================================
+  # 1. Backend CI (Checks, Migrations & Unit Tests)
+  # ===========================================================================
   backend:
     name: Backend CI (Tests & Checks)
     runs-on: ubuntu-latest
@@ -45,7 +57,7 @@ jobs:
 
     env:
       DJANGO_SETTINGS_MODULE: prex.settings.local
-      DJANGO_SECRET_KEY: ${{ secrets.DJANGO_SECRET_KEY }}
+      DJANGO_SECRET_KEY: ${{ secrets.DJANGO_SECRET_KEY || 'ci-test-secret-key-for-django-build-validation-32chars' }}
       DB_NAME: prex
       DB_USER: postgres
       DB_PASSWORD: postgres
@@ -89,6 +101,9 @@ jobs:
           cd backend
           python manage.py test
 
+  # ===========================================================================
+  # 2. Frontend CI (ESLint & Vite Production Build)
+  # ===========================================================================
   frontend:
     name: Frontend CI (Lint & Build)
     runs-on: ubuntu-latest
@@ -118,3 +133,84 @@ jobs:
         env:
           VITE_API_BASE_URL: /api/v1
         run: npm run build
+
+  # ===========================================================================
+  # 3. Publish Multi-Arch Docker Images to GHCR (On push to main / tags)
+  # Allows pulling pre-built ARM64/AMD64 images directly inside your Oracle VM
+  # ===========================================================================
+  publish-images:
+    name: Build & Publish Container Images
+    runs-on: ubuntu-latest
+    needs: [backend, frontend]
+    if: (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/v')) && github.event_name != 'pull_request'
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Resolve Image Names & Metadata
+        id: meta
+        run: |
+          LOWER_OWNER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+          SHORT_SHA=$(echo "${{ github.sha }}" | cut -c1-8)
+          echo "owner=${LOWER_OWNER}" >> $GITHUB_OUTPUT
+          echo "sha_tag=sha-${SHORT_SHA}" >> $GITHUB_OUTPUT
+
+      - name: Extract Docker metadata (Backend)
+        id: meta_backend
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ steps.meta.outputs.owner }}/prex-backend
+          tags: |
+            type=raw,value=latest
+            type=raw,value=${{ steps.meta.outputs.sha_tag }}
+            type=ref,event=tag
+
+      - name: Build & Push Backend Multi-Arch Image (ARM64 & AMD64)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: backend/Dockerfile
+          platforms: linux/arm64,linux/amd64
+          push: true
+          tags: ${{ steps.meta_backend.outputs.tags }}
+          labels: ${{ steps.meta_backend.outputs.labels }}
+          cache-from: type=gha,scope=backend
+          cache-to: type=gha,mode=max,scope=backend
+
+      - name: Extract Docker metadata (Frontend)
+        id: meta_frontend
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ steps.meta.outputs.owner }}/prex-frontend
+          tags: |
+            type=raw,value=latest
+            type=raw,value=${{ steps.meta.outputs.sha_tag }}
+            type=ref,event=tag
+
+      - name: Build & Push Frontend Multi-Arch Image (ARM64 & AMD64)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: frontend/Dockerfile
+          platforms: linux/arm64,linux/amd64
+          build-args: |
+            VITE_API_BASE_URL=/api/v1
+          push: true
+          tags: ${{ steps.meta_frontend.outputs.tags }}
+          labels: ${{ steps.meta_frontend.outputs.labels }}
+          cache-from: type=gha,scope=frontend
+          cache-to: type=gha,mode=max,scope=frontend

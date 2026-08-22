@@ -1,199 +1,142 @@
-# PREX Continuous Deployment (CD) & Production Guide
+# PREX Deployment & Operations Guide (Oracle Cloud Instance)
 
-This guide provides an end-to-end overview of the **Continuous Deployment (CD)** pipeline, server provisioning, container registry integration, automated database migrations, zero-downtime rolling updates, SSL/TLS certificate configuration, and rollback strategies for **PREX**.
+This guide provides instructions for running **PREX** on an **Oracle Cloud Infrastructure (OCI) Compute Instance** (Ubuntu on Ampere A1 ARM64), integrating with **GitHub Actions CI**, and manually updating the application containers.
 
 ---
 
-## 1. Architecture Overview
-
-The PREX Continuous Deployment pipeline uses **GitHub Actions**, **GitHub Container Registry (GHCR)**, **Docker Compose**, and an **Nginx Reverse Proxy** to deploy immutable production containers to target servers over secure SSH.
+## 1. Overview of Workflow
 
 ```mermaid
-flowchart TD
-    subgraph GitHub ["GitHub Actions (.github/workflows/cd.yml)"]
-        A["Git Push (main/master) or Release Tag"] --> B["Build Multi-Arch Docker Images"]
-        B --> C["Push Images to GHCR Registry"]
+flowchart LR
+    subgraph GitHub ["GitHub Repository"]
+        A["Git Push / Pull Request"] --> B["GitHub Actions (.github/workflows/ci.yml)"]
+        B --> C["1. PostgreSQL & Redis Checks"]
+        C --> D["2. Django makemigrations & Unit Tests"]
+        D --> E["3. Frontend ESLint & Vite Build"]
+        E --> F["4. Build & Push Multi-Arch Images (ARM64/AMD64) to GHCR"]
     end
 
-    subgraph GHCR ["GitHub Container Registry (ghcr.io)"]
-        C --> D1["ghcr.io/.../prex-backend:sha-xyz"]
-        C --> D2["ghcr.io/.../prex-frontend:sha-xyz"]
+    subgraph Server ["Oracle VM (~/PREX-Enhanced)"]
+        G["Manual Update Command"] --> H["Pull New Images / Git Sync"]
+        H --> I["Apply Migrations & Collectstatic"]
+        I --> J["Restart Containers (docker compose)"]
+        J --> K["Health Check (HTTP 200 OK)"]
     end
 
-    subgraph Server ["Target Production Server (/opt/prex)"]
-        E["SSH Deploy Execution"] --> F["Pull Latest Images from GHCR"]
-        F --> G["Run Migrations & Collectstatic"]
-        G --> H["Zero-Downtime Container Recreate"]
-        H --> I{"Health Check Probes"}
-        I -->|"Healthy 200 OK"| J["Prune Dangling Images & Complete"]
-        I -->|"Unhealthy"| K["Automated Rollback to Previous Image Tag"]
-    end
-
-    D1 -.-> F
-    D2 -.-> F
-    E -. SSH Commands .-> Server
+    F -. Pull Images .-> H
 ```
 
 ---
 
-## 2. GitHub Actions Workflows
+## 2. GitHub Actions CI Pipeline
 
-The repository contains two distinct workflows under `.github/workflows/`:
+The CI workflow ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) automatically runs on pushes and pull requests:
 
-| Workflow | File | Trigger | Purpose |
-| :--- | :--- | :--- | :--- |
-| **Continuous Integration (CI)** | [`.github/workflows/ci.yml`](.github/workflows/ci.yml) | Pull requests & branch pushes | Validates backend checks, database migrations, Python tests (37 tests), ESLint, and Vite frontend build. |
-| **Continuous Deployment (CD)** | [`.github/workflows/cd.yml`](.github/workflows/cd.yml) | Pushes to `main`/`master`, git release tags (`v*.*.*`), or `workflow_dispatch` | Pure deployment pipeline: builds & pushes Docker images to GHCR, deploys via SSH, validates health, and emits deployment summaries. |
-
-### CD Manual Trigger Options (`workflow_dispatch`)
-
-You can manually trigger a deployment at any time from the **Actions** tab on GitHub:
-- **`environment`**: Target environment (`production` or `staging`).
-- **`deploy_target`**: Component selection (`all`, `backend`, `frontend`).
-- **`run_migrations`**: Automatically apply Django database migrations (`true`/`false`).
-
----
-
-## 3. GitHub Secrets & Variables Configuration
-
-To enable automated SSH deployments, configure the following secrets in your GitHub repository (**Settings > Secrets and variables > Actions**):
-
-### Repository Secrets (Under the "Secrets" Tab)
-
-> [!IMPORTANT]
-> Ensure you add these under the **Secrets** tab (not the Variables tab). Secrets are referenced in the workflow as `${{ secrets.NAME }}`.
-
-| Secret Name | Required | Description | Example / Format |
-| :--- | :---: | :--- | :--- |
-| **`SSH_HOST`** | **Yes** | Public IP address or domain of the deployment server | `203.0.113.45` or `prex.duckdns.org` |
-| **`SSH_USER`** | **Yes** | SSH username with Docker & sudo permissions | `ubuntu` or `deploy` |
-| **`SSH_KEY`** | **Yes** | Private SSH Key corresponding to server's `~/.ssh/authorized_keys` | `-----BEGIN OPENSSH PRIVATE KEY-----...` |
-| **`SSH_PORT`** | No | SSH daemon port (defaults to `22` if omitted) | `22` |
-| **`DEPLOY_PATH`** | No | Target directory on the server where PREX is installed | `/opt/prex` (default) |
-
-### Repository Variables (Under the "Variables" Tab)
-
-| Variable Name | Required | Description | Default |
-| :--- | :---: | :--- | :--- |
-| **`APP_URL`** | No | Canonical public URL of the web application | `https://prex.duckdns.org` |
+1. **Backend CI Job (`backend`)**:
+   - Launches PostgreSQL 17 and Redis 7 test containers.
+   - Runs `python manage.py check` and missing migrations check (`makemigrations --check --dry-run`).
+   - Executes Django backend unit test suite (37 tests).
+2. **Frontend CI Job (`frontend`)**:
+   - Runs ESLint on frontend codebase.
+   - Builds the production bundle with Vite.
+3. **Container Publishing Job (`publish-images`)**:
+   - Only triggers on push to `main` (or release tags `v*.*.*`) once all tests pass.
+   - Builds multi-arch container images (`linux/arm64` and `linux/amd64`) with Buildx + QEMU.
+   - Pushes images to GitHub Container Registry (`ghcr.io`):
+     - `ghcr.io/<owner>/prex-backend:latest`
+     - `ghcr.io/<owner>/prex-frontend:latest`
 
 ---
 
-## 4. Troubleshooting CD Deployment Issues
+## 3. Manual Deployment on Oracle Instance (`~/PREX-Enhanced`)
 
-### Common Error: `Error: missing server host`
+Whenever you push new changes to `main` and CI passes, log into your Oracle instance to update the running stack:
 
-If your CD job fails at the step `Deploy to Remote Host via SSH` (`appleboy/ssh-action`) with the message `Error: missing server host`, verify the following:
+### Method A: Fast Update using `scripts/deploy.sh` (Recommended)
 
-1. **Secret vs. Variable Misplacement:**
-   Ensure `SSH_HOST` is created under **Secrets** (accessible via `${{ secrets.SSH_HOST }}`), not **Variables** (`${{ vars.SSH_HOST }}`).
-2. **Environment Scoping (`environment: production`):**
-   The deploy job specifies `environment: production`. If a `production` environment exists under **Settings > Environments**, verify that `SSH_HOST`, `SSH_USER`, and `SSH_KEY` are either added directly to **Environment secrets** within `production`, or defined globally as **Repository secrets** with no conflicting blank environment entries.
-3. **Exact Secret Naming:**
-   Secret names are case-sensitive. Verify there are no typos (e.g. use `SSH_HOST`, not `HOST`, `SERVER_HOST`, or `SSH_IP`).
-4. **SSH Key Format:**
-   Ensure `SSH_KEY` includes the full private key headers:
-   ```text
-   -----BEGIN OPENSSH PRIVATE KEY-----
-   ... (key body) ...
-   -----END OPENSSH PRIVATE KEY-----
+```bash
+# 1. SSH into your Oracle instance
+ssh ubuntu@<YOUR_INSTANCE_IP>
+
+# 2. Go to your project directory
+cd ~/PREX-Enhanced
+
+# 3. Pull latest code and restart services
+git pull origin main
+./scripts/deploy.sh deploy
+```
+
+The script automatically pulls the newest images, runs Django migrations, collects static files, recreates containers, and runs a healthcheck verification.
+
+---
+
+### Method B: Manual Docker Compose Commands
+
+```bash
+# 1. SSH into your Oracle instance
+ssh ubuntu@<YOUR_INSTANCE_IP>
+
+# 2. Navigate to directory
+cd ~/PREX-Enhanced
+
+# 3. Pull latest git changes
+git pull origin main
+
+# 4. Pull updated container images from GHCR
+docker compose -f docker-compose.prod.yml pull
+
+# 5. Run database migrations and static collection
+docker compose -f docker-compose.prod.yml run --rm backend python manage.py migrate --noinput
+docker compose -f docker-compose.prod.yml run --rm backend python manage.py collectstatic --noinput
+
+# 6. Recreate application containers
+docker compose -f docker-compose.prod.yml up -d --remove-orphans
+
+# 7. Check service health
+curl -I http://127.0.0.1/api/v1/health/
+```
+
+---
+
+## 4. Useful Management Commands
+
+Inside `~/PREX-Enhanced`:
+
+```bash
+# View running container status
+docker compose -f docker-compose.prod.yml ps
+
+# View live container logs
+docker compose -f docker-compose.prod.yml logs -f --tail 100 backend frontend
+
+# Restart all services
+docker compose -f docker-compose.prod.yml restart
+
+# Prune unused docker images to save disk space
+docker image prune -f
+```
+
+---
+
+## 5. One-Time Server Setup Checklist
+
+If setting up on a fresh Oracle Cloud Ubuntu instance:
+
+1. **Add non-root user to docker group:**
+   ```bash
+   sudo usermod -aG docker ubuntu
+   # Exit and reconnect SSH for group permissions to take effect
    ```
 
----
+2. **Open Ubuntu Firewall Ports (80 & 443):**
+   ```bash
+   sudo iptables -I INPUT 6 -m state --state NEW -p tcp --dport 80 -j ACCEPT
+   sudo iptables -I INPUT 6 -m state --state NEW -p tcp --dport 443 -j ACCEPT
+   sudo netfilter-persistent save
+   ```
 
-## 5. Server Provisioning (One-Time Setup)
+3. **OCI Security List Ingress Rules:**
+   Ensure TCP Ports `22` (SSH), `80` (HTTP), and `443` (HTTPS) are allowed in the Oracle Cloud VCN Security List.
 
-Run the automated setup script on a fresh Ubuntu 22.04 or 24.04 LTS server:
-
-```bash
-# SSH into your server
-ssh ubuntu@your-server-ip
-
-# Run the automated setup script
-sudo bash -c "$(curl -fsSL https://raw.githubusercontent.com/savyez/PREX-Enhanced/main/scripts/server-setup.sh)"
-```
-
-The setup script automatically:
-- Installs Docker Engine, Docker Compose plugin, Git, curl, and UFW firewall.
-- Configures firewall rules (allows ports `22`, `80`, `443`).
-- Creates the deployment directory `/opt/prex` with appropriate user permissions.
-- Sets up systemd service unit for automated container restarts on system boot.
-
----
-
-## 6. Deployment Manager Script & Commands
-
-The project includes an idempotent deployment manager script: [`scripts/deploy.sh`](scripts/deploy.sh).
-
-```bash
-# Full deployment (pulls images, runs migrations, collectstatic, restarts containers, verifies health)
-./scripts/deploy.sh deploy
-
-# Rollback to the previous deployment if an issue is discovered
-./scripts/deploy.sh rollback
-
-# Inspect health endpoints
-./scripts/deploy.sh healthcheck
-
-# Check running container statuses
-./scripts/deploy.sh status
-
-# Follow application logs
-./scripts/deploy.sh logs
-
-# Run ad-hoc migrations
-./scripts/deploy.sh migrate
-```
-
----
-
-## 7. Automated Health Probes & Rollback Mechanism
-
-Every deployment triggers an automated health verification phase:
-
-1. **Nginx Liveness Probe (`/healthz`)**: Confirms that the Nginx reverse proxy is actively listening and responsive.
-2. **Backend API Health Check (`/api/v1/health/`)**: Confirms Django WSGI / Gunicorn is running and answering requests with HTTP 200 OK (`{"status": "ok"}`).
-3. **Retry Strategy**: 30 attempts with 2-second intervals (60s total timeout).
-4. **Automatic Rollback**: If health checks fail after 30 attempts:
-   - The deployment script captures recent container logs.
-   - It restores `.rollback_state` containing previous healthy image tags.
-   - It recreates containers with previous tags to restore uptime immediately.
-   - It exits with code `1`, alerting the GitHub Actions workflow.
-
----
-
-## 8. SSL / TLS Certificate Setup (Let's Encrypt for prex.duckdns.org)
-
-For production HTTPS termination on `prex.duckdns.org`:
-
-### 1. Point DuckDNS Domain to Server IP
-Ensure your DuckDNS domain (`prex.duckdns.org`) is pointing to your server's public IP address.
-
-### 2. Issue SSL Certificate via Certbot
-```bash
-# Install Certbot
-sudo apt-get update && sudo apt-get install -y certbot
-
-# Issue certificate (ensure port 80 is temporarily available or use webroot)
-sudo certbot certonly --standalone -d prex.duckdns.org
-```
-
-### 3. Mount Certificate Files to Nginx Directory
-```bash
-sudo mkdir -p /etc/nginx/ssl/live
-sudo ln -sf /etc/letsencrypt/live/prex.duckdns.org/fullchain.pem /etc/nginx/ssl/live/fullchain.pem
-sudo ln -sf /etc/letsencrypt/live/prex.duckdns.org/privkey.pem /etc/nginx/ssl/live/privkey.pem
-```
-
-### 4. Enable Nginx SSL Configuration
-In `docker-compose.prod.yml`, switch the Nginx configuration volume mount to use `nginx.ssl.conf`:
-```yaml
-frontend:
-  volumes:
-    - ./frontend/nginx.ssl.conf:/etc/nginx/conf.d/default.conf:ro
-    - /etc/nginx/ssl/live:/etc/nginx/ssl/live:ro
-```
-Restart the stack:
-```bash
-docker compose -f docker-compose.prod.yml up -d
-```
+4. **Production `.env.docker`:**
+   Ensure `~/PREX-Enhanced/.env.docker` is present with production secrets.
